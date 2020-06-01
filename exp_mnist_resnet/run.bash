@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 
 CUDA_VISIBLE_DEVICES="0,1"
-datasets_path="/scratch/ag919/datasets/"
-out_path="/scratch/ag919/grams_pytorch/mnist_test3"
-config="mnist_as_tf"
+datasets_path="./scratch/datasets/"
+out_path="./scratch/mnist_test4"
+## Test 3 was the first run, 2 the 2nd and one the 3rd run
+config="mnist_paper_convnet_gp"
 batch_size=200
 
 if [ -d "$out_path" ]; then
