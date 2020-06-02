@@ -7,6 +7,8 @@ out_path="./scratch/mnist_test4"
 config="mnist_paper_convnet_gp"
 batch_size=200
 
+python ./exp_mnist_resnet/stop_time.py startTimer
+
 if [ -d "$out_path" ]; then
 	echo "Careful: directory \"$out_path\" already exists"
 	exit 1
@@ -48,3 +50,5 @@ echo "Classify using the complete set"
 combined_file="${out_path}/$(printf "%02d_nw%02d.h5" 0 $n_workers)"
 python -m exp_mnist_resnet.classify_gp --datasets_path="$datasets_path" \
 	   --config="$config" --in_path="$combined_file"
+
+python ./exp_mnist_resnet/stop_time.py endTimer
