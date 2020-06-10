@@ -31,7 +31,7 @@ worker_rank=0
 for cuda_i in $space_separated_cuda; do
 	this_worker="${out_path}/$(printf "%02d_nw%02d.h5" $worker_rank $n_workers)"
 
-	CUDA_VISIBLE_DEVICES=$cuda_i python -m exp_mnist_resnet.save_kernel --n_workers=$n_workers \
+	CUDA_VISIBLE_DEVICES=$cuda_i python -m cProfile -o ./profiling/saveKernel.txt -m exp_mnist_resnet.save_kernel --n_workers=$n_workers \
 		 --worker_rank=$worker_rank --datasets_path="$datasets_path" --batch_size=$batch_size \
 		 --config="$config" --out_path="$this_worker" &
 	pids[${i}]=$!
@@ -43,12 +43,12 @@ for pid in ${pids[*]}; do
 done
 
 echo "combining all data sets in one"
-python -m exp_mnist_resnet.merge_h5_files "${out_path}"/*
+python -m cProfile -o ./profiling/merging.txt -m exp_mnist_resnet.merge_h5_files "${out_path}"/*
 
 
 echo "Classify using the complete set"
 combined_file="${out_path}/$(printf "%02d_nw%02d.h5" 0 $n_workers)"
-python -m exp_mnist_resnet.classify_gp --datasets_path="$datasets_path" \
+python -m cProfile -o ./profiling/classify.txt -m exp_mnist_resnet.classify_gp --datasets_path="$datasets_path" \
 	   --config="$config" --in_path="$combined_file"
 
 python ./exp_mnist_resnet/stop_time.py endTimer
