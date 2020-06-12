@@ -7,7 +7,7 @@ out_path="./scratch/mnist_test4"
 config="mnist_paper_convnet_gp"
 batch_size=200
 
-python ./exp_mnist_resnet/stop_time.py startTimer
+
 
 if [ -d "$out_path" ]; then
 	echo "Careful: directory \"$out_path\" already exists"
@@ -25,6 +25,7 @@ echo "Downloading dataset"
 python -c "import configs.$config as c; import cnn_gp; cnn_gp.DatasetFromConfig(\"$datasets_path\", c)"
 
 echo "Starting kernel computation workers in parallel"
+python ./exp_mnist_resnet/stop_time.py startTimer
 
 mkdir "$out_path"
 worker_rank=0
@@ -41,6 +42,7 @@ done
 for pid in ${pids[*]}; do
 	wait $pid
 done
+python ./exp_mnist_resnet/stop_time.py endTimer
 
 echo "combining all data sets in one"
 python -m cProfile -o ./profiling/merging.txt -m exp_mnist_resnet.merge_h5_files "${out_path}"/*
@@ -51,4 +53,4 @@ combined_file="${out_path}/$(printf "%02d_nw%02d.h5" 0 $n_workers)"
 python -m cProfile -o ./profiling/classify.txt -m exp_mnist_resnet.classify_gp --datasets_path="$datasets_path" \
 	   --config="$config" --in_path="$combined_file"
 
-python ./exp_mnist_resnet/stop_time.py endTimer
+

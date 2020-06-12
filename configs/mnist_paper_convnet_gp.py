@@ -5,12 +5,9 @@ from cnn_gp import Conv2d, ReLU, Sequential
 # train_range = range(5000, 55000)
 # validation_range = list(range(55000, 60000)) + list(range(0, 5000))
 # test_range = range(60000, 70000)
-# train_range = range(0, 25000)
-# validation_range = range(25000, 27500)
-# test_range = range(27500, 30000)
-train_range = range(0, 10000)
-validation_range = range(10000, 10500)
-test_range = range(105000, 11000)
+train_range = range(0, 25000)
+validation_range = range(25000, 27500)
+test_range = range(27500, 30000)
 
 dataset_name = "MNIST"
 model_name = "ConvNet"
