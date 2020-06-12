@@ -1,16 +1,19 @@
 import absl.app
-import h5py
-
-from exp_mnist_resnet.classify_gp import load_kern
+from fancyimpute import MatrixFactorization
+from sklearn import decomposition
 
 FLAGS = absl.app.flags.FLAGS
 
 
 def pca_analysis(x, k=None):
-    print(x)
+    PCA = decomposition.PCA(k)
+    PCA.fit(x)
+    eigenvectors = PCA.components_
+    singular_values = PCA.singular_values_
+    variance = PCA.explained_variance_
+    print("Variance")
+    print(variance)
 
 
-def main():
-    with h5py.File(FLAGS.in_path, "r") as f:
-        print("Loading kernel")
-        Kxx = load_kern(f["Kxx"], 0)
+def matrix_completion(x):
+    return MatrixFactorization().fit_transform(X=x)
