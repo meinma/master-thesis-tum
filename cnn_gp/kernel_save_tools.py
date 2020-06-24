@@ -1,4 +1,6 @@
 import numpy as np
+from torch.utils.data import Subset
+
 from .data import ProductIterator, DiagIterator, print_timings
 
 __all__ = ('create_h5py_dataset', 'save_K')
@@ -24,7 +26,7 @@ def create_h5py_dataset(f, batch_size, name, diag, N, N2):
 
 
 def save_K(f, kern, name, X, X2, diag, batch_size, worker_rank=0, n_workers=1,
-           print_interval=2.):
+           print_interval=2., computation=1.0):
     """
     Saves a kernel to the h5py file `f`. Creates its dataset with name `name`
     if necessary.
@@ -36,11 +38,14 @@ def save_K(f, kern, name, X, X2, diag, batch_size, worker_rank=0, n_workers=1,
         N = len(X)
         N2 = N if X2 is None else len(X2)
         out = create_h5py_dataset(f, batch_size, name, diag, N, N2)
-
     if diag:
         # Don't split the load for diagonals, they are cheap
         it = DiagIterator(batch_size, X, X2)
     else:
+        # In case not the whole matrix is computed compute kxx only for a random subset and use Matrix factorization
+        if computation < 1.0:
+            X = Subset(X, range(0, int(computation * N)))
+            X2 = X
         it = ProductIterator(batch_size, X, X2, worker_rank=worker_rank,
                              n_workers=n_workers)
     it = print_timings(it, desc=f"{name} (worker {worker_rank}/{n_workers})",

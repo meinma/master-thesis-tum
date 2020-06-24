@@ -1,5 +1,5 @@
 import absl.app
-from fancyimpute import MatrixFactorization
+from fancyimpute import MatrixFactorization, IterativeSVD, SoftImpute
 from sklearn import decomposition
 
 FLAGS = absl.app.flags.FLAGS
@@ -17,3 +17,11 @@ def pca_analysis(x, k=None):
 
 def matrix_completion(x):
     return MatrixFactorization().fit_transform(X=x)
+
+
+def iterativeSVD(x):
+    return IterativeSVD().fit_transform(X=x)
+
+
+def softImpute(x):
+    return SoftImpute().fit_transform(X=x)

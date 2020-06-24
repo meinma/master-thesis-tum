@@ -1,16 +1,19 @@
 """
 Given a pre-computed kernel and a data set, compute train/validation/test accuracy.
 """
+import importlib
+
 import absl.app
 import h5py
 import numpy as np
-import scipy.linalg
-import torch
-import sklearn.metrics
 import scipy
+import scipy.linalg
+import sklearn.metrics
+import torch
 
-import importlib
 from cnn_gp import DatasetFromConfig
+from matrix_factorization.factorization import pca_analysis, softImpute
+
 FLAGS = absl.app.flags.FLAGS
 
 
@@ -29,9 +32,9 @@ def solve_system(Kxx, Y):
 
 def diag_add(K, diag):
     if isinstance(K, torch.Tensor):
-        K.view(K.numel())[::K.shape[-1]+1] += diag
+        K.view(K.numel())[::K.shape[-1] + 1] += diag
     elif isinstance(K, np.ndarray):
-        K.flat[::K.shape[-1]+1] += diag
+        K.flat[::K.shape[-1] + 1] += diag
     else:
         raise TypeError("What do I do with a `{}`, K={}?".format(type(K), K))
 
@@ -39,7 +42,7 @@ def diag_add(K, diag):
 def print_accuracy(A, Kxvx, Y, key):
     Ypred = (Kxvx @ A).argmax(dim=1)
     acc = sklearn.metrics.accuracy_score(Y, Ypred)
-    print(f"{key} accuracy: {acc*100}%")
+    print(f"{key} accuracy: {acc * 100}%")
 
 
 def load_kern(dset, i):
@@ -51,6 +54,7 @@ def load_kern(dset, i):
 def main(_):
     config = importlib.import_module(f"configs.{FLAGS.config}")
     dataset = DatasetFromConfig(FLAGS.datasets_path, config)
+    computation = FLAGS.computation
 
     print("Reading training labels")
     _, Y = dataset.load_full(dataset.train)
@@ -62,6 +66,13 @@ def main(_):
         print("Loading kernel")
         Kxx = load_kern(f["Kxx"], 0)
         diag_add(Kxx, FLAGS.jitter)
+
+        print("Computing PCA")
+        pca_analysis(x=Kxx.cuda(), k=10)
+
+        if computation < 1.0:
+            Kxx = softImpute(Kxx)
+            Kxx = torch.tensor(Kxx, dtype=torch.double)
 
         print("Solving Kxx^{-1} Y")
         A = solve_system(Kxx, Y_1hot)
@@ -77,6 +88,8 @@ def main(_):
         print_accuracy(A, Kxtx, Yt, "test")
         del Kxtx
         del Yt
+
+        del Kxx
 
 
 # @(py36) ag919@ulam:~/Programacio/cnn-gp-pytorch$ python classify_gp.py --in_path=/scratch/ag919/grams_pytorch/mnist_as_tf/00_nwork07.h5 --config=mnist_as_tf
@@ -99,4 +112,5 @@ if __name__ == '__main__':
     f.DEFINE_string('in_path', "/scratch/ag919/grams_pytorch/mnist/dest.h5",
                     "path of h5 file to load kernels from")
     f.DEFINE_float("jitter", 0.0, "add to the diagonal")
+    f.DEFINE_float("computation", 1.0, "fraction of kxx which is computed exactly")
     absl.app.run(main)
