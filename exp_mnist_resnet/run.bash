@@ -1,12 +1,17 @@
 #!/usr/bin/env bash
+# Restricting multithreading in numpy
+#MKL_NUM_THREADS="4"
+#NUMEXPR_NUM_THREADS="4"
+#OMP_NUM_THREADS="4"
 
-#CUDA_VISIBLE_DEVICES="0,1"
-CUDA_VISIBLE_DEVICES="1"
+
+CUDA_VISIBLE_DEVICES="0,1"
+#CUDA_VISIBLE_DEVICES="1"
 datasets_path="./scratch/datasets/"
 out_path="./scratch/mnist_test4"
-## Test 3 was the first run, 2 the 2nd and one the 3rd run
 config="mnist_paper_convnet_gp"
 batch_size=200
+## Parameter for running experiments > 1  or the normal mode = 1.0
 computation=1.0
 
 
@@ -17,8 +22,8 @@ if [ -d "$out_path" ]; then
 fi
 
 space_separated_cuda="${CUDA_VISIBLE_DEVICES//,/ }"
-#n_workers=$(echo $space_separated_cuda | wc -w)
-n_workers=2
+n_workers=$(echo $space_separated_cuda | wc -w)
+#n_workers=2
 if [ "$n_workers" == 0 ]; then
 	echo "You must specify CUDA_VISIBLE_DEVICES"
 	exit 1
@@ -52,7 +57,7 @@ python -m exp_mnist_resnet.merge_h5_files "${out_path}"/*
 
 echo "Classify using the complete set"
 combined_file="${out_path}/$(printf "%02d_nw%02d.h5" 0 $n_workers)"
-CUDA_VISIBLE_DEVICES=1 python -m exp_mnist_resnet.classify_gp --datasets_path="$datasets_path" \
+python -m exp_mnist_resnet.classify_gp --datasets_path="$datasets_path" \
 	   --config="$config" --in_path="$combined_file" --computation=$computation
 
 python ./exp_mnist_resnet/stop_time.py endTimer

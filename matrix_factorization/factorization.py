@@ -1,4 +1,6 @@
 import absl.app
+import matplotlib.pyplot as plt
+import numpy as np
 from fancyimpute import MatrixFactorization, IterativeSVD, SoftImpute
 from sklearn import decomposition
 
@@ -13,6 +15,22 @@ def pca_analysis(x, k=None):
     variance = PCA.explained_variance_
     print("Variance")
     print(variance)
+
+
+def plotEigenvalues(x):
+    """
+
+    @param x: contains the matrix for which the eigenvalues are computed
+    @return: plots the eigenvalues of the given matrix x
+    """
+    eigenvalues = np.linalg.eigvals(x)
+    # x = np.arange(1, len(eigenvalues)+1, 1)
+    fig = plt.figure()
+    plt.plot(**eigenvalues)
+    plt.xlabel("Number of eigenvalue")
+    plt.ylabel("Eigenvalue")
+    plt.title("Plot of the eigenvalues of the K_xx matrix")
+    plt.show()
 
 
 def matrix_completion(x):

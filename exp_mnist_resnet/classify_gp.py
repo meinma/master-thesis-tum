@@ -2,6 +2,8 @@
 Given a pre-computed kernel and a data set, compute train/validation/test accuracy.
 """
 import importlib
+from copy import deepcopy
+from timeit import default_timer as timer
 
 import absl.app
 import h5py
@@ -12,9 +14,34 @@ import sklearn.metrics
 import torch
 
 from cnn_gp import DatasetFromConfig
-from matrix_factorization.factorization import pca_analysis, softImpute
+from matrix_factorization.factorization import softImpute, matrix_completion, iterativeSVD
 
 FLAGS = absl.app.flags.FLAGS
+
+
+def computeRMSE(x, y):
+    """
+    @param x: original matrix which has all entries
+    @param y: matrix which was filled my matrix completion algorithms
+    @return: RMSE (root mean squared error) between the two matrices x and y
+    """
+    diff = x - y
+    diff = diff ** 2
+    return np.sqrt(np.sum(diff) / (x.shape[0] * x.shape[1]))
+
+
+def isSymmetric(x, rtol=1e-5, atol=1e-5):
+    return np.allclose(x, x.T, rtol=rtol, atol=atol)
+
+
+def perturbateMatrix(X):
+    columns = X.shape[1]
+    rows = X.shape[0]
+    for row in range(rows):
+        ##Sampling
+        sample = np.random.randint(0, columns - 1)
+        X[row][sample] = np.nan
+    return X
 
 
 def solve_system(Kxx, Y):
@@ -24,9 +51,8 @@ def solve_system(Kxx, Y):
     even if they were `float32` when being calculated. This makes the
     inversion much less likely to complain about the matrix being singular.
     """
-    A = scipy.linalg.solve(
-        Kxx.numpy(), Y.numpy(), overwrite_a=True, overwrite_b=False,
-        check_finite=False, assume_a='pos', lower=False)
+    A, _, _, _ = scipy.linalg.lstsq(
+        Kxx.numpy(), Y.numpy())
     return torch.from_numpy(A)
 
 
@@ -67,29 +93,63 @@ def main(_):
         Kxx = load_kern(f["Kxx"], 0)
         diag_add(Kxx, FLAGS.jitter)
 
-        print("Computing PCA")
-        pca_analysis(x=Kxx.cuda(), k=10)
+        # print("Computing PCA")
+        # pca_analysis(x=Kxx.cuda(), k=10)
 
         if computation < 1.0:
             Kxx = softImpute(Kxx)
             Kxx = torch.tensor(Kxx, dtype=torch.double)
 
-        print("Solving Kxx^{-1} Y")
-        A = solve_system(Kxx, Y_1hot)
+        elif computation > 1.0:
+            Kxx_perturbated = deepcopy(Kxx)
+            Kxx_perturbated = perturbateMatrix(Kxx_perturbated)
+            start = timer()
+            Kxx_svd = iterativeSVD(Kxx_perturbated)
+            end = timer()
+            diff = end - start
+            print(f"svd time: {diff}")
+            start = timer()
+            Kxx_soft = softImpute(Kxx_perturbated)
+            end = timer()
+            diff = end - start
+            print(f"Soft time: {diff}")
+            start = timer()
+            Kxx_mf = matrix_completion(Kxx_perturbated)
+            end = timer()
+            diff = end - start
+            print(f"Matrix factorization: {diff}")
+            print("Kxx_svd is symmetric after applying iterative svd: " + str(isSymmetric(Kxx_svd)))
+            print("Kxx_soft is symmetric after applying softImpute: " + str(isSymmetric(Kxx_soft)))
+            print("Kxx_mf is symmetric after applying MatrixFactorization: " + str(isSymmetric(Kxx_mf)))
+            svd_error = computeRMSE(Kxx.numpy(), Kxx_svd)
+            soft_error = computeRMSE(Kxx.numpy(), Kxx_soft)
+            mf_error = computeRMSE(Kxx.numpy(), Kxx_mf)
+            print("Errors of the different methods:")
+            print(f"Iterative svd error: {svd_error}")
+            print(f"SoftImpute error: {soft_error}")
+            print(f"Matrix Factorization error: {mf_error}")
 
-        _, Yv = dataset.load_full(dataset.validation)
-        Kxvx = load_kern(f["Kxvx"], 0)
-        print_accuracy(A, Kxvx, Yv, "validation")
-        del Kxvx
-        del Yv
+        else:
+            print(Kxx)
+            # max = torch.max(Kxx)
+            # print("Maximal values: ")
+            # print(max)
+            print("Solving Kxx^{-1} Y")
+            A = solve_system(Kxx, Y_1hot)
 
-        _, Yt = dataset.load_full(dataset.test)
-        Kxtx = load_kern(f["Kxtx"], 0)
-        print_accuracy(A, Kxtx, Yt, "test")
-        del Kxtx
-        del Yt
+            _, Yv = dataset.load_full(dataset.validation)
+            Kxvx = load_kern(f["Kxvx"], 0)
+            print_accuracy(A, Kxvx, Yv, "validation")
+            del Kxvx
+            del Yv
 
-        del Kxx
+            _, Yt = dataset.load_full(dataset.test)
+            Kxtx = load_kern(f["Kxtx"], 0)
+            print_accuracy(A, Kxtx, Yt, "test")
+            del Kxtx
+            del Yt
+
+            del Kxx
 
 
 # @(py36) ag919@ulam:~/Programacio/cnn-gp-pytorch$ python classify_gp.py --in_path=/scratch/ag919/grams_pytorch/mnist_as_tf/00_nwork07.h5 --config=mnist_as_tf
