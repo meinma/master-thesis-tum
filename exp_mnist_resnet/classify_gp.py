@@ -56,6 +56,19 @@ def solve_system(Kxx, Y):
     return torch.from_numpy(A)
 
 
+def solve_system_old(Kxx, Y):
+    print("Running scipy solve Kxx^-1 Y routine")
+    assert Kxx.dtype == torch.float64 and Y.dtype == torch.float64, """
+    It is important that `Kxx` and `Y` are `float64`s for the inversion,
+    even if they were `float32` when being calculated. This makes the
+    inversion much less likely to complain about the matrix being singular.
+    """
+    A = scipy.linalg.solve(
+        Kxx.numpy(), Y.numpy(), overwrite_a=True, overwrite_b=False,
+        check_finite=False, assume_a='pos', lower=False)
+    return torch.from_numpy(A)
+
+
 def diag_add(K, diag):
     if isinstance(K, torch.Tensor):
         K.view(K.numel())[::K.shape[-1] + 1] += diag
@@ -131,11 +144,15 @@ def main(_):
 
         else:
             print(Kxx)
+            print(torch.isnan(Kxx))
+            symmetric = isSymmetric(Kxx)
+            print(f"Kxx is symmetric: {symmetric}")
             # max = torch.max(Kxx)
-            # print("Maximal values: ")
-            # print(max)
+            # min = torch.min(Kxx)
+            # print(f"Maximal values: {max}")
+            # print(f"Minimal Value: {min}")
             print("Solving Kxx^{-1} Y")
-            A = solve_system(Kxx, Y_1hot)
+            A = solve_system_old(Kxx, Y_1hot)
 
             _, Yv = dataset.load_full(dataset.validation)
             Kxvx = load_kern(f["Kxvx"], 0)

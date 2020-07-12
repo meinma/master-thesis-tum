@@ -4,8 +4,8 @@
 #NUMEXPR_NUM_THREADS="4"
 #OMP_NUM_THREADS="4"
 
-
-CUDA_VISIBLE_DEVICES="0,1"
+# Run on macbook CPU only
+#CUDA_VISIBLE_DEVICES="0,1"
 #CUDA_VISIBLE_DEVICES="1"
 datasets_path="./scratch/datasets/"
 out_path="./scratch/mnist_test4"
@@ -21,9 +21,9 @@ if [ -d "$out_path" ]; then
 	exit 1
 fi
 
-space_separated_cuda="${CUDA_VISIBLE_DEVICES//,/ }"
-n_workers=$(echo $space_separated_cuda | wc -w)
-#n_workers=2
+#space_separated_cuda="${CUDA_VISIBLE_DEVICES//,/ }"
+#n_workers=$(echo $space_separated_cuda | wc -w)
+n_workers=2
 if [ "$n_workers" == 0 ]; then
 	echo "You must specify CUDA_VISIBLE_DEVICES"
 	exit 1
@@ -37,10 +37,11 @@ python ./exp_mnist_resnet/stop_time.py startTimer
 
 mkdir "$out_path"
 worker_rank=0
-for cuda_i in $space_separated_cuda; do
+for cuda_i in n_workers; do #$space_separated_cuda; do CPU only
 	this_worker="${out_path}/$(printf "%02d_nw%02d.h5" $worker_rank $n_workers)"
 
-	CUDA_VISIBLE_DEVICES=$cuda_i python -m exp_mnist_resnet.save_kernel --n_workers=$n_workers \
+	#CUDA_VISIBLE_DEVICES=$cuda_i // CPU only
+	python -m exp_mnist_resnet.save_kernel --n_workers=$n_workers \
 		 --worker_rank=$worker_rank --datasets_path="$datasets_path" --batch_size=$batch_size \
 		 --config="$config" --out_path="$this_worker" --computation=${computation} &
 	pids[${i}]=$!

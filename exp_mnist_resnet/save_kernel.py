@@ -2,7 +2,6 @@
 Save a kernel matrix to disk
 """
 import importlib
-import os
 
 import absl.app
 import h5py
@@ -16,16 +15,17 @@ FLAGS = absl.app.flags.FLAGS
 def main(_):
     ## Set number of threads to 4 to share CPU resources
     # torch.set_num_threads(4)
-    print(f"CUDA_VISIBLE_DEVICES={os.environ['CUDA_VISIBLE_DEVICES']}")
+    # print(f"CUDA_VISIBLE_DEVICES={os.environ['CUDA_VISIBLE_DEVICES']}")
     n_workers, worker_rank = FLAGS.n_workers, FLAGS.worker_rank
     config = importlib.import_module(f"configs.{FLAGS.config}")
     dataset = DatasetFromConfig(FLAGS.datasets_path, config)
-    model = config.initial_model.cuda()
+    model = config.initial_model  #.cuda()
 
     def kern(x, x2, same, diag):
         with torch.no_grad():
-            return model(x.cuda(), x2.cuda(), same,
-                         diag).detach().cpu().numpy()
+            return model(x, x2, same, diag).numpy()
+            # return model(x.cuda(), x2.cuda(), same,
+            #              diag).detach().cpu().numpy()
 
     with h5py.File(FLAGS.out_path, "w") as f:
         kwargsXX = dict(worker_rank=worker_rank, n_workers=n_workers,

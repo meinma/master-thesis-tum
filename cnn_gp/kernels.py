@@ -1,10 +1,11 @@
+import math
+
+import numpy as np
 import torch as t
 import torch.nn as nn
 import torch.nn.functional as F
-import numpy as np
-from .kernel_patch import ConvKP, NonlinKP
-import math
 
+from .kernel_patch import ConvKP, NonlinKP
 
 __all__ = ("NNGPKernel", "Conv2d", "ReLU", "Sequential", "Mixture",
            "MixtureModule", "Sum", "SumModule", "resnet_block")
@@ -147,11 +148,18 @@ class ReLU(NNGPKernel):
 
         # Clamp these so the outputs are not NaN
         cos_theta = (kp.xy * xx_yy.rsqrt()).clamp(-1, 1)
-        sin_theta = t.sqrt((xx_yy - kp.xy**2).clamp(min=0))
+        if t.isnan(cos_theta).any():
+            print("costheta is nan")
+        sin_theta = t.sqrt((xx_yy - kp.xy ** 2).clamp(min=0))
+        if t.isnan(sin_theta).any():
+            print("Sintheta is nan")
         theta = t.acos(cos_theta)
-        xy = (sin_theta + (math.pi - theta)*kp.xy) / (2*math.pi)
-
-        xx = kp.xx/2.
+        if t.isnan(theta).any():
+            print("theta is nan")
+        xy = (sin_theta + (math.pi - theta) * kp.xy) / (2 * math.pi)
+        if t.isnan(xy).any():
+            print("xy is nan")
+        xx = kp.xx / 2.
         if kp.same:
             yy = xx
             if kp.diag:
@@ -159,7 +167,7 @@ class ReLU(NNGPKernel):
             else:
                 # Make sure the diagonal agrees with `xx`
                 eye = t.eye(xy.size()[0]).unsqueeze(-1).unsqueeze(-1).to(kp.xy.device)
-                xy = (1-eye)*xy + eye*xx
+                xy = (1 - eye) * xy + eye * xx
         else:
             yy = kp.yy/2.
         return NonlinKP(kp.same, kp.diag, xy, xx, yy)
