@@ -14,19 +14,35 @@ import sklearn.metrics
 import torch
 
 from cnn_gp import DatasetFromConfig
-from matrix_factorization.factorization import softImpute, matrix_completion, iterativeSVD
+from matrix_factorization.factorization import softImpute, iterativeSVD, plotEigenvalues
 
 FLAGS = absl.app.flags.FLAGS
 
 
-def computeRMSE(x, y):
+def constructSymmetricMatrix(x: np.ndarray) -> np.ndarray:
+    """
+    Constructs a symmetric matrix given a matrix x only with only entries in the upper triangle
+    @param x: matrix only filled in upper triangle
+    @return: symmetric matrix based on x
+    """
+    x_sym = np.empty_like(x)
+    x_sym[np.triu_indices(x.shape[0], k=0)] = x[np.triu_indices(x.shape[0], k=0)]
+    x_sym = x_sym + x_sym.T - np.diag(np.diag(x_sym))
+    return x_sym
+
+
+def computeRMSE(x: np.ndarray, y: np.ndarray) -> np.float:
     """
     @param x: original matrix which has all entries
-    @param y: matrix which was filled my matrix completion algorithms
+    @param y: matrix which was filled by matrix completion algorithms
     @return: RMSE (root mean squared error) between the two matrices x and y
     """
     diff = x - y
+    if np.isnan(diff).any():
+        print("diff is nan")
     diff = diff ** 2
+    if np.isnan(diff).any():
+        print("diff^2 is nan")
     return np.sqrt(np.sum(diff) / (x.shape[0] * x.shape[1]))
 
 
@@ -39,20 +55,20 @@ def perturbateMatrix(X):
     rows = X.shape[0]
     for row in range(rows):
         ##Sampling
-        sample = np.random.randint(0, columns - 1)
+        sample = np.random.randint(0, columns - 1, 3)
         X[row][sample] = np.nan
     return X
 
 
-def solve_system(Kxx, Y):
+def solve_system(Kxx: np.ndarray, Y) -> torch.float64:
     print("Running scipy solve Kxx^-1 Y routine")
-    assert Kxx.dtype == torch.float64 and Y.dtype == torch.float64, """
+    assert Y.dtype == torch.float64, """
     It is important that `Kxx` and `Y` are `float64`s for the inversion,
     even if they were `float32` when being calculated. This makes the
     inversion much less likely to complain about the matrix being singular.
     """
     A, _, _, _ = scipy.linalg.lstsq(
-        Kxx.numpy(), Y.numpy())
+        Kxx, Y.numpy())
     return torch.from_numpy(A)
 
 
@@ -114,48 +130,61 @@ def main(_):
             Kxx = torch.tensor(Kxx, dtype=torch.double)
 
         elif computation > 1.0:
-            Kxx_perturbated = deepcopy(Kxx)
+            if torch.isnan(Kxx).any():
+                Kxx_symm = constructSymmetricMatrix(Kxx.numpy())
+            else:
+                Kxx_symm = Kxx.numpy()
+            nans = np.sum(np.isnan(Kxx_symm))
+            print(f"nans in symmetric original matrix: {nans}")
+            Kxx_perturbated = deepcopy(Kxx_symm)
             Kxx_perturbated = perturbateMatrix(Kxx_perturbated)
             start = timer()
             Kxx_svd = iterativeSVD(Kxx_perturbated)
             end = timer()
             diff = end - start
             print(f"svd time: {diff}")
+            nans_svd = np.sum(np.isnan(Kxx_svd))
+            print(f"nans in svd reconstruction: {nans_svd}")
             start = timer()
             Kxx_soft = softImpute(Kxx_perturbated)
             end = timer()
             diff = end - start
+            soft_nans = np.sum(np.isnan(Kxx_soft))
+            print(f"number of nans after osftimpute reconstruction: {soft_nans}")
             print(f"Soft time: {diff}")
-            start = timer()
-            Kxx_mf = matrix_completion(Kxx_perturbated)
-            end = timer()
-            diff = end - start
-            print(f"Matrix factorization: {diff}")
+            # start = timer()
+            # #Kxx_mf = matrix_completion(Kxx_perturbated)
+            # end = timer()
+            # diff = end - start
+            # print(f"Matrix factorization: {diff}")
             print("Kxx_svd is symmetric after applying iterative svd: " + str(isSymmetric(Kxx_svd)))
             print("Kxx_soft is symmetric after applying softImpute: " + str(isSymmetric(Kxx_soft)))
-            print("Kxx_mf is symmetric after applying MatrixFactorization: " + str(isSymmetric(Kxx_mf)))
+            # print("Kxx_mf is symmetric after applying MatrixFactorization: " + str(isSymmetric(Kxx_mf)))
             svd_error = computeRMSE(Kxx.numpy(), Kxx_svd)
             soft_error = computeRMSE(Kxx.numpy(), Kxx_soft)
-            mf_error = computeRMSE(Kxx.numpy(), Kxx_mf)
+            # mf_error = computeRMSE(Kxx.numpy(), Kxx_mf)
             print("Errors of the different methods:")
             print(f"Iterative svd error: {svd_error}")
             print(f"SoftImpute error: {soft_error}")
-            print(f"Matrix Factorization error: {mf_error}")
+            # print(f"Matrix Factorization error: {mf_error}")
+
+            del Kxx
+            del Kxx_symm
+            # del Kxx_mf
+            del Kxx_soft
+            del Kxx_perturbated
+            del Kxx_svd
 
         else:
-            print(Kxx)
-            print(torch.isnan(Kxx))
-            symmetric = isSymmetric(Kxx)
-            print(f"Kxx is symmetric: {symmetric}")
-            # max = torch.max(Kxx)
-            # min = torch.min(Kxx)
-            # print(f"Maximal values: {max}")
-            # print(f"Minimal Value: {min}")
+            Kxx_symm = constructSymmetricMatrix(Kxx.numpy())
+            plotEigenvalues(Kxx_symm)
+
             print("Solving Kxx^{-1} Y")
-            A = solve_system_old(Kxx, Y_1hot)
+            A = solve_system(Kxx_symm, Y_1hot)
 
             _, Yv = dataset.load_full(dataset.validation)
             Kxvx = load_kern(f["Kxvx"], 0)
+
             print_accuracy(A, Kxvx, Yv, "validation")
             del Kxvx
             del Yv

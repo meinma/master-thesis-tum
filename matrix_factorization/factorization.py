@@ -1,36 +1,32 @@
 import absl.app
+import fire
 import matplotlib.pyplot as plt
 import numpy as np
 from fancyimpute import MatrixFactorization, IterativeSVD, SoftImpute
-from sklearn import decomposition
+from sklearn import kernel_approximation
 
 FLAGS = absl.app.flags.FLAGS
 
 
-def pca_analysis(x, k=None):
-    PCA = decomposition.PCA(k)
-    PCA.fit(x)
-    eigenvectors = PCA.components_
-    singular_values = PCA.singular_values_
-    variance = PCA.explained_variance_
-    print("Variance")
-    print(variance)
+def applyNyström(x, components):
+    return kernel_approximation.Nystroem().fit_transform(x, n_components=components)
 
 
-def plotEigenvalues(x):
+def plotEigenvalues(x: np.ndarray):
     """
-
     @param x: contains the matrix for which the eigenvalues are computed
     @return: plots the eigenvalues of the given matrix x
     """
+    print("Plotting eigenvalues")
     eigenvalues = np.linalg.eigvals(x)
-    # x = np.arange(1, len(eigenvalues)+1, 1)
-    fig = plt.figure()
-    plt.plot(**eigenvalues)
+    print(eigenvalues)
+    plt.figure()
+    plt.plot(eigenvalues)
     plt.xlabel("Number of eigenvalue")
     plt.ylabel("Eigenvalue")
     plt.title("Plot of the eigenvalues of the K_xx matrix")
     plt.show()
+    plt.savefig('./plots/eigenvalues.svg')
 
 
 def matrix_completion(x):
@@ -43,3 +39,16 @@ def iterativeSVD(x):
 
 def softImpute(x):
     return SoftImpute().fit_transform(X=x)
+
+
+def testPlot():
+    plt.figure()
+    plt.plot([1, 2, 3, 4])
+    plt.title("Testplot")
+    plt.show()
+    print("Plot finished")
+    plt.savefig('./plots/testplot.svg')
+
+
+if __name__ == "__main__":
+    fire.Fire()

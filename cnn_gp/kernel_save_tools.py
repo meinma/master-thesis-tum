@@ -1,5 +1,4 @@
 import numpy as np
-from torch.utils.data import Subset
 
 from .data import ProductIterator, DiagIterator, print_timings
 
@@ -43,9 +42,9 @@ def save_K(f, kern, name, X, X2, diag, batch_size, worker_rank=0, n_workers=1,
         it = DiagIterator(batch_size, X, X2)
     else:
         # In case not the whole matrix is computed compute kxx only for a random subset and use Matrix factorization
-        if computation < 1.0:
-            X = Subset(X, range(0, int(computation * N)))
-            X2 = X
+        # if computation < 1.0:
+        #     X = Subset(X, range(0, int(computation * N)))
+        #     X2 = X
         it = ProductIterator(batch_size, X, X2, worker_rank=worker_rank,
                              n_workers=n_workers)
     it = print_timings(it, desc=f"{name} (worker {worker_rank}/{n_workers})",
