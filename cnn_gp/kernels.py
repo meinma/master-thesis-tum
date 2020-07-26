@@ -8,7 +8,7 @@ import torch.nn.functional as F
 from .kernel_patch import ConvKP, NonlinKP
 
 __all__ = ("NNGPKernel", "Conv2d", "ReLU", "Sequential", "Mixture",
-           "MixtureModule", "Sum", "SumModule", "resnet_block")
+           "MixtureModule", "Sum", "SumModule", "resnet_block", "NormalizationModule")
 
 
 class NNGPKernel(nn.Module):
@@ -16,6 +16,7 @@ class NNGPKernel(nn.Module):
     Transforms one kernel matrix into another.
     [N1, N2, W, H] -> [N1, N2, W, H]
     """
+
     def forward(self, x, y=None, same=None, diag=False):
         """
         Either takes one minibatch (x), or takes two minibatches (x and y), and
@@ -29,8 +30,8 @@ class NNGPKernel(nn.Module):
         assert not diag or len(x) == len(y), (
             "diagonal kernels must operate with data of equal length")
 
-        assert 4==len(x.size())
-        assert 4==len(y.size())
+        assert 4 == len(x.size())
+        assert 4 == len(y.size())
         assert x.size(1) == y.size(1)
         assert x.size(2) == y.size(2)
         assert x.size(3) == y.size(3)
@@ -43,11 +44,11 @@ class NNGPKernel(nn.Module):
 
         # [N1, C, W, H], [N2, C, W, H] -> [N1 N2, 1, W, H]
         if diag:
-            xy = (x*y).mean(1, keepdim=True)
+            xy = (x * y).mean(1, keepdim=True)
         else:
-            xy = (x.unsqueeze(1)*y).mean(2).view(N1*N2, 1, W, H)
-        xx = (x**2).mean(1, keepdim=True)
-        yy = (y**2).mean(1, keepdim=True)
+            xy = (x.unsqueeze(1) * y).mean(2).view(N1 * N2, 1, W, H)
+        xx = (x ** 2).mean(1, keepdim=True)
+        yy = (y ** 2).mean(1, keepdim=True)
 
         initial_kp = ConvKP(same, diag, xy, xx, yy)
         final_kp = self.propagate(initial_kp)
@@ -70,7 +71,7 @@ class Conv2d(NNGPKernel):
         self.var_bias = var_bias
         self.kernel_has_row_of_zeros = False
         if padding == "same":
-            self.padding = dilation*(kernel_size//2)
+            self.padding = dilation * (kernel_size // 2)
             if kernel_size % 2 == 0:
                 self.kernel_has_row_of_zeros = True
         else:
@@ -80,22 +81,24 @@ class Conv2d(NNGPKernel):
             # We need to pad one side larger than the other. We just make a
             # kernel that is slightly too large and make its last column and
             # row zeros.
-            kernel = t.ones(1, 1, self.kernel_size+1, self.kernel_size+1)
+            kernel = t.ones(1, 1, self.kernel_size + 1, self.kernel_size + 1)
             kernel[:, :, 0, :] = 0.
             kernel[:, :, :, 0] = 0.
         else:
             kernel = t.ones(1, 1, self.kernel_size, self.kernel_size)
         self.register_buffer('kernel', kernel
-                             * (self.var_weight / self.kernel_size**2))
+                             * (self.var_weight / self.kernel_size ** 2))
         self.in_channel_multiplier, self.out_channel_multiplier = (
             in_channel_multiplier, out_channel_multiplier)
 
     def propagate(self, kp):
         kp = ConvKP(kp)
+
         def f(patch):
             return (F.conv2d(patch, self.kernel, stride=self.stride,
                              padding=self.padding, dilation=self.dilation)
                     + self.var_bias)
+
         return ConvKP(kp.same, kp.diag, f(kp.xy), f(kp.xx), f(kp.yy))
 
     def nn(self, channels, in_channels=None, out_channels=None):
@@ -132,6 +135,7 @@ class ReLU(NNGPKernel):
     values.
     """
     f32_tiny = np.finfo(np.float32).tiny
+
     def propagate(self, kp):
         kp = NonlinKP(kp)
         """
@@ -148,17 +152,9 @@ class ReLU(NNGPKernel):
 
         # Clamp these so the outputs are not NaN
         cos_theta = (kp.xy * xx_yy.rsqrt()).clamp(-1, 1)
-        if t.isnan(cos_theta).any():
-            print("costheta is nan")
         sin_theta = t.sqrt((xx_yy - kp.xy ** 2).clamp(min=0))
-        if t.isnan(sin_theta).any():
-            print("Sintheta is nan")
         theta = t.acos(cos_theta)
-        if t.isnan(theta).any():
-            print("theta is nan")
         xy = (sin_theta + (math.pi - theta) * kp.xy) / (2 * math.pi)
-        if t.isnan(xy).any():
-            print("xy is nan")
         xx = kp.xx / 2.
         if kp.same:
             yy = xx
@@ -169,7 +165,7 @@ class ReLU(NNGPKernel):
                 eye = t.eye(xy.size()[0]).unsqueeze(-1).unsqueeze(-1).to(kp.xy.device)
                 xy = (1 - eye) * xy + eye * xx
         else:
-            yy = kp.yy/2.
+            yy = kp.yy / 2.
         return NonlinKP(kp.same, kp.diag, xy, xx, yy)
 
     def nn(self, channels, in_channels=None, out_channels=None):
@@ -189,10 +185,12 @@ class Sequential(NNGPKernel):
         self.mods = mods
         for idx, mod in enumerate(mods):
             self.add_module(str(idx), mod)
+
     def propagate(self, kp):
         for mod in self.mods:
             kp = mod.propagate(kp)
         return kp
+
     def nn(self, channels, in_channels=None, out_channels=None):
         if len(self.mods) == 0:
             return nn.Sequential()
@@ -204,6 +202,7 @@ class Sequential(NNGPKernel):
                 *[mod.nn(channels) for mod in self.mods[1:-1]],
                 self.mods[-1].nn(channels, out_channels=out_channels)
             )
+
     def layers(self):
         return sum(mod.layers() for mod in self.mods)
 
@@ -217,6 +216,7 @@ class Mixture(NNGPKernel):
     up to one, such that, if each model has average variance 1,
     then the output will also have average variance 1.
     """
+
     def __init__(self, mods, logit_proportions=None):
         super().__init__()
         self.mods = mods
@@ -225,16 +225,21 @@ class Mixture(NNGPKernel):
         if logit_proportions is None:
             logit_proportions = t.zeros(len(mods))
         self.logit = nn.Parameter(logit_proportions)
+
     def propagate(self, kp):
         proportions = F.softmax(self.logit, dim=0)
         total = self.mods[0].propagate(kp) * proportions[0]
         for i in range(1, len(self.mods)):
             total = total + (self.mods[i].propagate(kp) * proportions[i])
         return total
+
     def nn(self, channels, in_channels=None, out_channels=None):
-        return MixtureModule([mod.nn(channels, in_channels=in_channels, out_channels=out_channels) for mod in self.mods], self.logit)
+        return MixtureModule(
+            [mod.nn(channels, in_channels=in_channels, out_channels=out_channels) for mod in self.mods], self.logit)
+
     def layers(self):
         return max(mod.layers() for mod in self.mods)
+
 
 class MixtureModule(nn.Module):
     def __init__(self, mods, logit_parameter):
@@ -243,11 +248,12 @@ class MixtureModule(nn.Module):
         self.logit = t.tensor(logit_parameter)
         for idx, mod in enumerate(mods):
             self.add_module(str(idx), mod)
+
     def forward(self, input):
         sqrt_proportions = F.softmax(self.logit, dim=0).sqrt()
-        total = self.mods[0](input)*sqrt_proportions[0]
+        total = self.mods[0](input) * sqrt_proportions[0]
         for i in range(1, len(self.mods)):
-            total = total + self.mods[i](input) # *sqrt_proportions[i]
+            total = total + self.mods[i](input)  # *sqrt_proportions[i]
         return total
 
 
@@ -257,13 +263,16 @@ class Sum(NNGPKernel):
         self.mods = mods
         for idx, mod in enumerate(mods):
             self.add_module(str(idx), mod)
+
     def propagate(self, kp):
         # This adds 0 to the first kp, hopefully that's a noop
         return sum(m.propagate(kp) for m in self.mods)
+
     def nn(self, channels, in_channels=None, out_channels=None):
         return SumModule([
             mod.nn(channels, in_channels=in_channels, out_channels=out_channels)
             for mod in self.mods])
+
     def layers(self):
         return max(mod.layers() for mod in self.mods)
 
@@ -274,6 +283,7 @@ class SumModule(nn.Module):
         self.mods = mods
         for idx, mod in enumerate(mods):
             self.add_module(str(idx), mod)
+
     def forward(self, input):
         # This adds 0 to the first value, hopefully that's a noop
         return sum(m(input) for m in self.mods)
@@ -294,11 +304,34 @@ def resnet_block(stride=1, projection_shortcut=False, multiplier=1):
         return Sequential(
             ReLU(),
             Sum([
-                Conv2d(1, stride=stride, in_channel_multiplier=multiplier//stride, out_channel_multiplier=multiplier),
+                Conv2d(1, stride=stride, in_channel_multiplier=multiplier // stride, out_channel_multiplier=multiplier),
                 Sequential(
-                    Conv2d(3, stride=stride, in_channel_multiplier=multiplier//stride, out_channel_multiplier=multiplier),
+                    Conv2d(3, stride=stride, in_channel_multiplier=multiplier // stride,
+                           out_channel_multiplier=multiplier),
                     ReLU(),
                     Conv2d(3, in_channel_multiplier=multiplier, out_channel_multiplier=multiplier),
                 )
             ]),
         )
+
+
+"""Additional Class as nn.Module which is similarly used as BatchNormalization for NNs
+    It normalizes the data before feeding it into the nonlinear activation layer
+"""
+
+
+class NormalizationModule(NNGPKernel):
+    def propagate(self, kp):
+        kp = ConvKP(kp)
+        x_max = t.max(kp.xx).item()
+        xy_max = t.max(kp.xy).item()
+        if kp.same:
+            max = max(x_max, xy_max)
+        else:
+            yy_max = t.max(kp.yy).item()
+            max = max(x_max, xy_max, yy_max)
+
+        def normalize(patch):
+            return float(patch / max)
+
+        return ConvKP(kp.same, kp.diag, normalize(kp.xy), normalize(kp.xx), normalize(kp.yy))
