@@ -1,5 +1,6 @@
 import copy
 import random
+from timeit import default_timer as timer
 
 import fire
 import matplotlib.pyplot as plt
@@ -36,18 +37,18 @@ def deleteValues(x: np.ndarray, fraction: float) -> np.ndarray:
     return nan_x
 
 
-def computeMeanVariance(error_list: list) -> list:
+def computeMeanVariance(error_list: list) -> tuple:
     """
     computes the mean and the variance for every single list in @error_list
     @param error_list: contains lists of errors for several fractions
     @return: tuple of mean and variance for every list
     """
-    result = []
+    means = []
+    variances = []
     for e_list in error_list:
-        mean = np.mean(e_list)
-        variance = np.var(e_list)
-        result.append(tuple((mean, variance)))
-    return result
+        means.append(np.mean(e_list))
+        variances.append(np.var(e_list))
+    return means, variances
 
 
 def createPlots(moments, fractions, name):
@@ -70,6 +71,12 @@ def createPlots(moments, fractions, name):
 
 def startExperiment():
     fractions = np.arange(0.1, 1, 0.1)
+    svd_times = []
+    uv_times = []
+    impute_times = []
+    svd_time = []
+    uv_time = []
+    impute_time = []
     svd_errors = []
     uv_errors = []
     impute_errors = []
@@ -77,6 +84,9 @@ def startExperiment():
     uv_error = []
     impute_error = []
     for fraction in tqdm(fractions):
+        svd_time.clear()
+        uv_time.clear()
+        impute_time.clear()
         svd_error.clear()
         uv_error.clear()
         impute_error.clear()
@@ -84,23 +94,38 @@ def startExperiment():
         for _ in tqdm(range(10)):
             print("Generate Matrix")
             x = generateSquareRandomMatrix(5000)
-            print("Delete random values")
+            print(f"Delete random values{fraction}")
             x_tilde = deleteValues(x, fraction=fraction)
+            start = timer()
             x_svd = iterativeSVD(x_tilde)
+            svd_time.append(timer() - start)
+            start = timer()
             x_uv = matrix_completion(x_tilde)
+            uv_time.append(timer() - start)
+            start = timer()
             x_impute = softImpute(x_tilde)
+            impute_time.append(timer() - start)
             print("Start computing the errors")
             svd_error.append(computeRMSE(x, x_svd))
             uv_error.append(computeRMSE(x, x_uv))
             impute_error.append(computeRMSE(x, x_impute))
+        svd_times.append(svd_time)
+        uv_times.append(uv_time)
+        impute_times.append(impute_time)
         svd_errors.append(svd_error)
         uv_errors.append(uv_error)
         impute_errors.append(impute_error)
+    svd_time_expectation = computeMeanVariance(svd_times)[0]
+    uv_time_expectation = computeMeanVariance(uv_times)[0]
+    impute_time_expectation = computeMeanVariance(impute_times)[0]
+    times = svd_time_expectation, uv_time_expectation, impute_time_expectation
     svd_moments = computeMeanVariance(svd_errors)
     uv_moments = computeMeanVariance(uv_errors)
     impute_moments = computeMeanVariance(impute_errors)
     moments = svd_moments[0], uv_moments[0], impute_moments[0]
     variances = svd_moments[1], uv_moments[1], impute_moments[1]
+    print('Plotting')
+    createPlots(times, fractions, name='Measured time')
     createPlots(moments, fractions, name="Expectation values")
     createPlots(variances, fractions, name="Variances")
 
