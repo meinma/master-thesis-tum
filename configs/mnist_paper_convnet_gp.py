@@ -8,9 +8,12 @@ from cnn_gp import Conv2d, ReLU, Sequential, NormalizationModule
 # train_range = range(0, 25000)
 # validation_range = range(25000, 27500)
 # test_range = range(27500, 30000)
-train_range = range(0, 5000)
-validation_range = range(5000, 5500)
-test_range = range(5500, 6000)
+# train_range = range(0, 5000)
+# validation_range = range(5000, 5500)
+# test_range = range(5500, 6000)
+train_range = range(0, 100)
+validation_range = range(100, 101)
+test_range = range(101, 102)
 
 dataset_name = "MNIST"
 model_name = "ConvNet"
@@ -28,7 +31,7 @@ for _ in range(7):  # n_layers
     layers += [
         Conv2d(kernel_size=7, padding="same", var_weight=var_weight * 7 ** 2,
                var_bias=var_bias),
-        NormalizationModule,
+        NormalizationModule(),
         ReLU(),
     ]
 initial_model = Sequential(

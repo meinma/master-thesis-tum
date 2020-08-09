@@ -1,15 +1,10 @@
-import absl.app
 import fire
 import matplotlib.pyplot as plt
 import numpy as np
+import seaborn as sns
 from fancyimpute import MatrixFactorization, IterativeSVD, SoftImpute
-from sklearn import kernel_approximation
 
-FLAGS = absl.app.flags.FLAGS
-
-
-def applyNyström(x, components):
-    return kernel_approximation.Nystroem().fit_transform(x, n_components=components)
+sns.set()
 
 
 def plotEigenvalues(x: np.ndarray):
@@ -26,7 +21,15 @@ def plotEigenvalues(x: np.ndarray):
     plt.ylabel("Eigenvalue")
     plt.title("Plot of the eigenvalues of the K_xx matrix")
     plt.show()
-    plt.savefig('./plots/eigenvalues.svg')
+    plt.savefig('./plots/eigenvalues25.svg')
+    plt.close()
+    plt.figure()
+    plt.plot(np.log(eigenvalues))
+    plt.xlabel('Number of the eigenvalue')
+    plt.ylabel('Log space of eigenvalue')
+    plt.title('Plot of the eigenvalues of the K_xx matrix in the log space')
+    plt.show()
+    plt.savefig('./plots/log_eigenvalues.svg')
 
 
 def matrix_completion(x):
@@ -39,15 +42,6 @@ def iterativeSVD(x):
 
 def softImpute(x):
     return SoftImpute().fit_transform(X=x)
-
-
-def testPlot():
-    plt.figure()
-    plt.plot([1, 2, 3, 4])
-    plt.title("Testplot")
-    plt.show()
-    print("Plot finished")
-    plt.savefig('./plots/testplot.svg')
 
 
 if __name__ == "__main__":

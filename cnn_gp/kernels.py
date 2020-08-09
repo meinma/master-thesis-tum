@@ -17,11 +17,13 @@ class NNGPKernel(nn.Module):
     [N1, N2, W, H] -> [N1, N2, W, H]
     """
 
-    def forward(self, x, y=None, same=None, diag=False):
+    def forward(self, x, y=None, **kwargs):
         """
         Either takes one minibatch (x), or takes two minibatches (x and y), and
         a boolean indicating whether they're the same.
         """
+        same = kwargs['same']
+        diag = kwargs['diag']
         if y is None:
             assert same is None
             y = x
@@ -321,17 +323,25 @@ def resnet_block(stride=1, projection_shortcut=False, multiplier=1):
 
 
 class NormalizationModule(NNGPKernel):
+    # Instead of dividing by the maximum value of kpxx, kpxy and kpyy divide each by its own maximum
     def propagate(self, kp):
         kp = ConvKP(kp)
         x_max = t.max(kp.xx).item()
         xy_max = t.max(kp.xy).item()
         if kp.same:
-            max = max(x_max, xy_max)
+            maximum = max(x_max, xy_max)
         else:
             yy_max = t.max(kp.yy).item()
-            max = max(x_max, xy_max, yy_max)
+            maximum = max(x_max, xy_max, yy_max)
 
         def normalize(patch):
-            return float(patch / max)
+            return patch / maximum
+
+        def normalize_variant2(patch):
+            return patch / t.max(patch).item()
 
         return ConvKP(kp.same, kp.diag, normalize(kp.xy), normalize(kp.xx), normalize(kp.yy))
+        # return ConvKP(kp.same, kp.diag, normalize_variant2(kp.xy), normalize_variant2(kp.xx),
+        # normalize_variant2(kp.yy))
+
+    """Alternatively use normalization as in BatchNorm"""
