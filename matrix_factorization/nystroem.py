@@ -6,7 +6,7 @@ import torch
 from torch.utils.data import Subset
 
 from cnn_gp.kernel_save_tools import save_K
-from utils.utils import load_kern, constructSymmetricIfNotSymmetric
+from utils.utils import load_kern
 
 
 class Nystroem:
@@ -18,7 +18,10 @@ class Nystroem:
             self.in_path = in_path
         self.n_components = n_components
         self.model = model
-        self.k = k
+        if k is None:
+            self.k = self.n_components
+        else:
+            self.k = k
         self.dataset = dataset
         self.batch_size = batch_size
         self.n_workers = n_workers
@@ -26,22 +29,28 @@ class Nystroem:
         self.out_path = out_path
         self.same = same
         self.diag = diag
-        self.subset = self.sample()
+        self.indices = None
+        self.subset = None
+        self.sample()
 
-    def sample(self) -> Subset:
+    def sample(self):
         """
         Sample m data points for which the kernel is evaluated exactly
-        @return: Subset of m data points of the original data set
         """
-        n_samples = range(len(self.dataset))
+        n_samples = list(range(len(self.dataset)))
         indices = random.sample(n_samples, self.n_components)
-        return Subset(self.dataset, indices)
+        print(f"indices: {indices}")
+        for index in indices:
+            n_samples.remove(index)
+        # Rearrange order of dataset
+        self.indices = indices + n_samples
+        self.subset = Subset(self.dataset, indices)
+        self.dataset = Subset(self.dataset, self.indices)
 
     def computeKernelMatrices(self):
         """
         @return:
         """
-
         def kern(x, x2, **args):
             with torch.no_grad():
                 return self.model(x.cuda(), x2.cuda(), **args).detach().cpu().numpy()
@@ -49,8 +58,10 @@ class Nystroem:
         with h5py.File(self.out_path, "w") as f:
             kwargs = dict(worker_rank=self.worker_rank, n_workers=self.n_workers,
                           batch_size=self.batch_size, print_interval=2.)
-            save_K(f, kern, name="W", X=self.subset, X2=None, diag=False, **kwargs)
+            # rectangular matrix consisting of W and S
             save_K(f, kern, name="C", X=self.dataset, X2=self.subset, diag=False, **kwargs)
+            #  Compute the diagonal for C for better accuracy
+            save_K(f, kern, name="Cd", X=self.dataset, X2=None, diag=True, **kwargs)
 
     def loadMatrices(self):
         """
@@ -59,25 +70,19 @@ class Nystroem:
         """
         with h5py.File(self.in_path, "r") as f:
             print("Loading kernel")
-            W = load_kern(f["W"], 0)
             C = load_kern(f["C"], 0)
-        return W.numpy(), C.numpy()
+            C_diag = load_kern(f["Cd"], 0, diag=True)
+        return C.numpy(), C_diag.numpy()
 
     def fit_transform(self):
         """
         @return: the approximation of the original kernel matrix corresponding to
         G_k = C@W_k^+@C.T
         """
-        # 1. #Compute C and W
         self.computeKernelMatrices()
-        # 2.
-        W, C = self.loadMatrices()
-        W2 = C[:3500, :3500]
-        close = np.isclose(W, W2)
-        print(f"W is equal to W2: {close}")
-        W = constructSymmetricIfNotSymmetric(W)
-        print(f"Shape of W: {W.shape}")
-        print(f"Shape of C: {C.shape}")
+        C, C_diag = self.loadMatrices()
+        np.fill_diagonal(C, C_diag[:self.n_components])
+        W = C[:self.n_components, :self.n_components]
         u, sigma, vt = np.linalg.svd(W, full_matrices=False)
         u_k = u[:, :self.k]
         sigma_k = sigma[:self.k]

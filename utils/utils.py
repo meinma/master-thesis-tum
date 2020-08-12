@@ -7,6 +7,18 @@ import sklearn
 import torch
 
 
+def oneHotEncoding(Y):
+    """
+    Creates one hot encoding from given target vector
+    @param Y: target vector
+    @return: one hot encoding corresponding to Y
+    """
+    n_classes = Y.max() + 1
+    Y_1hot = torch.ones((len(Y), n_classes), dtype=torch.float64).neg_()  # all -1
+    Y_1hot[torch.arange(len(Y)), Y] = 1.
+    return Y_1hot
+
+
 def constructSymmetricIfNotSymmetric(x: np.ndarray) -> np.ndarray:
     """
     Checks if the given matrix x is symmetric if not, constructs a symmetric matrix from the upper triangle
@@ -85,9 +97,12 @@ def print_accuracy(A, Kxvx, Y, key):
     print(f"{key} accuracy: {acc * 100}%")
 
 
-def load_kern(dset, i):
+def load_kern(dset, i, diag=False):
     A = np.empty(dset.shape[1:], dtype=np.float32)
-    dset.read_direct(A, source_sel=np.s_[i, :, :])
+    if diag:
+        dset.read_direct(A, source_sel=np.s_[i, :])
+    else:
+        dset.read_direct(A, source_sel=np.s_[i, :, :])
     return torch.from_numpy(A).to(dtype=torch.float64)
 
 

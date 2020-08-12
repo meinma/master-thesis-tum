@@ -7,17 +7,19 @@ from timeit import default_timer as timer
 import absl.app
 import h5py
 import numpy as np
-import torch
 
 from cnn_gp import DatasetFromConfig
 from matrix_factorization.experiments import deleteValues, computeRMSE
 from matrix_factorization.factorization import softImpute, iterativeSVD, matrix_completion
 from matrix_factorization.nystroem import Nystroem
-from utils.utils import print_accuracy, solve_system, constructSymmetricIfNotSymmetric, load_kern, diag_add
+from utils.utils import print_accuracy, solve_system, constructSymmetricIfNotSymmetric, load_kern, \
+    diag_add, oneHotEncoding
 
 FLAGS = absl.app.flags.FLAGS
 
 
+# TODO adjust time measurements according to website
+# TODO write subset check to see if matrix factorizations can approximate matrices to have results on Thursday
 def main(_):
     config = importlib.import_module(f"configs.{FLAGS.config}")
     dataset = DatasetFromConfig(FLAGS.datasets_path, config)
@@ -25,9 +27,7 @@ def main(_):
 
     print("Reading training labels")
     _, Y = dataset.load_full(dataset.train)
-    n_classes = Y.max() + 1
-    Y_1hot = torch.ones((len(Y), n_classes), dtype=torch.float64).neg_()  # all -1
-    Y_1hot[torch.arange(len(Y)), Y] = 1.
+    Y_1hot = oneHotEncoding(Y)
 
     with h5py.File(FLAGS.in_path, "r") as f:
         print("Loading kernel")
@@ -38,15 +38,15 @@ def main(_):
             # Use Nystroem Approximation
             print('Nystroem')
             Kxx_symm = constructSymmetricIfNotSymmetric(Kxx.numpy())
+            print(f"Kxx: {Kxx_symm}")
             start = timer()
-            nystroem = Nystroem(n_components=int(0.7 * Kxx.shape[0]), k=int(0.1 * Kxx.shape[0]), dataset=dataset.train,
-                                model=config.initial_model.cuda(), batch_size=200, out_path='nystroem.h5')
+            nystroem = Nystroem(n_components=int(0.7 * Kxx.shape[0]), k=None, dataset=dataset.train,
+                                model=config.initial_model.cuda(), batch_size=200,
+                                out_path='./nystroem.h5')
             output = nystroem.fit_transform()
             end = timer()
             diff = (end - start) // 60  # time in minutes
             print(f'Nystroem took {diff} minutes')
-            print(output.shape)
-            print(f'error nystrom and original matrix: {computeRMSE(Kxx_symm, output)}]')
             A = solve_system(Kxx_symm, Y_1hot)
             A_nyst = solve_system(output, Y_1hot)
             _, Yv = dataset.load_full(dataset.validation)
