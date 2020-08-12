@@ -1,5 +1,3 @@
-import copy
-import random
 from timeit import default_timer as timer
 
 import fire
@@ -7,48 +5,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from tqdm import tqdm
 
-from exp_mnist_resnet.classify_gp import computeRMSE
 from matrix_factorization.factorization import iterativeSVD, softImpute, matrix_completion
-
-
-def generateSquareRandomMatrix(columns: int) -> np.ndarray:
-    """
-    Generate a random squared matrix with values between zero and 1 with the
-    shape of (columns, columns)
-    @param columns: amount of columns and rows (because it is squared)
-    @return: random generated squared matrix
-    """
-    x = np.random.rand(columns, columns)
-    return x
-
-
-def deleteValues(x: np.ndarray, fraction: float) -> np.ndarray:
-    """
-    Takes a matrix and a fraction as input and returns a matrix
-    where the fraction of elements are randomly set to Nan
-    @param x: original matrix from which values are set to Nan
-    @param fraction: percentage of all values of x is set  to NaN
-    @return: perturbed matrix with NaNs
-    """
-    nan_x = copy.deepcopy(x)
-    prop = int(fraction * x.size)
-    mask = random.sample(range(x.size), prop)
-    np.put(nan_x, mask, np.nan)
-    return nan_x
-
-
-def computeMeanVariance(error_list: list) -> tuple:
-    """
-    computes the mean and the variance for every single list in @error_list
-    @param error_list: contains lists of errors for several fractions
-    @return: tuple of mean and variance for every list
-    """
-    means = []
-    variances = []
-    for e_list in error_list:
-        means.append(np.mean(e_list))
-        variances.append(np.var(e_list))
-    return means, variances
+from utils.utils import computeRMSE, generateSquareRandomMatrix, deleteValues, computeMeanVariance
 
 
 def createPlots(moments, fractions, name):

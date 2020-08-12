@@ -26,11 +26,9 @@ def main(_):
             return model(x.cuda(), x2.cuda(), **args).detach().cpu().numpy()
 
     with h5py.File(FLAGS.out_path, "w") as f:
-        kwargsXX = dict(worker_rank=worker_rank, n_workers=n_workers,
-                        batch_size=FLAGS.batch_size, print_interval=2., computation=FLAGS.computation)
         kwargs = dict(worker_rank=worker_rank, n_workers=n_workers,
-                      batch_size=FLAGS.batch_size, print_interval=2., computation=1.0)
-        save_K(f, kern, name="Kxx", X=dataset.train, X2=None, diag=False, **kwargsXX)
+                      batch_size=FLAGS.batch_size, print_interval=2.)
+        save_K(f, kern, name="Kxx", X=dataset.train, X2=None, diag=False, **kwargs)
         save_K(f, kern, name="Kxvx", X=dataset.validation, X2=dataset.train, diag=False, **kwargs)
         save_K(f, kern, name="Kxtx", X=dataset.test, X2=dataset.train, diag=False, **kwargs)
 
