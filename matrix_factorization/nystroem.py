@@ -1,5 +1,3 @@
-import random
-
 import h5py
 import numpy as np
 import torch
@@ -37,15 +35,8 @@ class Nystroem:
         """
         Sample m data points for which the kernel is evaluated exactly
         """
-        n_samples = list(range(len(self.dataset)))
-        indices = random.sample(n_samples, self.n_components)
-        print(f"indices: {indices}")
-        for index in indices:
-            n_samples.remove(index)
-        # Rearrange order of dataset
-        self.indices = indices + n_samples
-        self.subset = Subset(self.dataset, indices)
-        self.dataset = Subset(self.dataset, self.indices)
+        self.indices = list(range(self.n_components))
+        self.subset = Subset(self.dataset, self.indices)
 
     def computeKernelMatrices(self):
         """

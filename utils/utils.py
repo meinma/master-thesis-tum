@@ -1,10 +1,69 @@
 import copy
 import random
 
+import matplotlib.pyplot as plt
 import numpy as np
 import scipy
+import seaborn as sn
 import sklearn
 import torch
+
+sn.set()
+
+
+def createPlots(moments, fractions, name):
+    """
+    Creates plots for the given moment data on y and fractions data on x with name as title
+    @param moments: contains expected values or variances of the errors
+    of the matrix approximation methods on the y-axis
+    @param fractions: contains the values for the x-axis
+    @param name: sets the title
+    @return: None
+    """
+    plt.figure()
+    plt.title(f"{name} values of the errors over the percentage of data which should be approximated")
+    plt.plot(fractions, moments[0], label='svd iteration')
+    plt.plot(fractions, moments[1], label='matrix factorization')
+    plt.plot(fractions, moments[2], label='soft impute')
+    plt.legend()
+    plt.savefig(f'./plots/{name}.svg')
+
+
+def plotEigenvalues(x: np.ndarray):
+    """
+    @param x: contains the matrix for which the eigenvalues are computed
+    @return: plots the eigenvalues of the given matrix x
+    """
+    print("Plotting eigenvalues")
+    eigenvalues, _ = np.linalg.eigh(x)
+    eigenvalues = eigenvalues[::-1]
+    max_val = np.max(eigenvalues)
+    smaller_vals = eigenvalues / max_val
+    print(eigenvalues)
+    plt.figure()
+    plt.plot(eigenvalues)
+    plt.xlabel("Number of eigenvalue")
+    plt.ylabel("Eigenvalue")
+    plt.title("Plot of the eigenvalues of the K_xx matrix")
+    plt.show()
+    plt.savefig('./plots/eigenvalues25.svg')
+    plt.close()
+    plt.figure()
+    plt.plot(np.log(eigenvalues))
+    plt.xlabel('Number of the eigenvalue')
+    plt.ylabel('Log space of eigenvalue')
+    plt.title('Plot of the eigenvalues of the K_xx matrix in the log space')
+    plt.show()
+    plt.savefig('./plots/log_eigenvalues.svg')
+    plt.close()
+    plt.figure()
+    plt.title("Plot of the normalized eigenvalues")
+    plt.xlabel("Number of eigenvalue")
+    plt.ylabel("Magnitude of normalized eigenvalues")
+    plt.plot(np.log(smaller_vals))
+    plt.show()
+    plt.savefig('./plots/normalized_eigenvalues.svg')
+    plt.close()
 
 
 def oneHotEncoding(Y):

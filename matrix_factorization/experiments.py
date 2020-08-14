@@ -1,32 +1,15 @@
 from timeit import default_timer as timer
 
 import fire
-import matplotlib.pyplot as plt
 import numpy as np
 from tqdm import tqdm
 
 from matrix_factorization.factorization import iterativeSVD, softImpute, matrix_completion
 from utils.utils import computeRMSE, generateSquareRandomMatrix, deleteValues, computeMeanVariance
+from utils.utils import createPlots
 
 
-def createPlots(moments, fractions, name):
-    """
-    Creates plots for the given moment data on y and fractions data on x with name as title
-    @param moments: contains expected values or variances of the errors
-    of the matrix approximation methods on the y-axis
-    @param fractions: contains the values for the x-axis
-    @param name: sets the title
-    @return: None
-    """
-    plt.figure()
-    plt.title(f"{name} values of the errors over the percentage of data which should be approximated")
-    plt.plot(fractions, moments[0], label='svd iteration')
-    plt.plot(fractions, moments[1], label='matrix factorization')
-    plt.plot(fractions, moments[2], label='soft impute')
-    plt.legend()
-    plt.savefig(f'./plots/{name}.svg')
-
-
+# TODO Adjust time measurements properly
 def startExperiment():
     fractions = np.arange(0.1, 1, 0.1)
     svd_times = []
