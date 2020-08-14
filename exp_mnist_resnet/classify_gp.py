@@ -6,20 +6,18 @@ from timeit import default_timer as timer
 
 import absl.app
 import h5py
-import numpy as np
 
 from cnn_gp import DatasetFromConfig
 from matrix_factorization.experiments import deleteValues, computeRMSE
-from matrix_factorization.factorization import softImpute, iterativeSVD, matrix_completion
+from matrix_factorization.factorization import softImpute, iterativeSVD
 from matrix_factorization.nystroem import Nystroem
 from utils.utils import print_accuracy, solve_system, constructSymmetricIfNotSymmetric, load_kern, \
-    diag_add, oneHotEncoding
+    diag_add, oneHotEncoding, plotEigenvalues
 
 FLAGS = absl.app.flags.FLAGS
 
 
 # TODO adjust time measurements according to website
-# TODO write subset check to see if matrix factorizations can approximate matrices to have results on Thursday
 def main(_):
     config = importlib.import_module(f"configs.{FLAGS.config}")
     dataset = DatasetFromConfig(FLAGS.datasets_path, config)
@@ -40,15 +38,15 @@ def main(_):
             Kxx_symm = constructSymmetricIfNotSymmetric(Kxx.numpy())
             print(f"Kxx: {Kxx_symm}")
             start = timer()
-            nystroem = Nystroem(n_components=int(0.7 * Kxx.shape[0]), k=None, dataset=dataset.train,
+            nystroem = Nystroem(n_components=int(0.6 * Kxx.shape[0]), k=None, dataset=dataset.train,
                                 model=config.initial_model.cuda(), batch_size=200,
                                 out_path='./nystroem.h5')
-            output = nystroem.fit_transform()
+            Kxx_nyst = nystroem.fit_transform()
             end = timer()
             diff = (end - start) // 60  # time in minutes
             print(f'Nystroem took {diff} minutes')
             A = solve_system(Kxx_symm, Y_1hot)
-            A_nyst = solve_system(output, Y_1hot)
+            A_nyst = solve_system(Kxx_nyst, Y_1hot)
             _, Yv = dataset.load_full(dataset.validation)
             Kxvx = load_kern(f["Kxvx"], 0)
             print_accuracy(A, Kxvx, Yv, "validation_original")
@@ -56,45 +54,35 @@ def main(_):
 
         elif computation > 1.0:
             Kxx_symm = constructSymmetricIfNotSymmetric(Kxx.numpy())
-            print(Kxx_symm)
-            nans = np.sum(np.isnan(Kxx_symm))
-            print(f"nans in symmetric original matrix: {nans}")
             Kxx_perturbated = deleteValues(Kxx_symm, 0.5)
             start = timer()
             Kxx_svd = iterativeSVD(Kxx_perturbated)
             end = timer()
             diff = end - start
             print(f"svd time: {diff}")
-            nans_svd = np.sum(np.isnan(Kxx_svd))
-            print(f"nans in svd reconstruction: {nans_svd}")
             start = timer()
             Kxx_soft = softImpute(Kxx_perturbated)
             end = timer()
             diff = end - start
-            soft_nans = np.sum(np.isnan(Kxx_soft))
-            print(f"number of nans after osftimpute reconstruction: {soft_nans}")
             print(f"Soft time: {diff}")
-            start = timer()
-            Kxx_mf = matrix_completion(Kxx_perturbated)
-            end = timer()
-            diff = end - start
-            print(f"Matrix factorization: {diff}")
-            print("Kxx_svd is symmetric after applying iterative svd: " + str(isSymmetric(Kxx_svd)))
-            print("Kxx_soft is symmetric after applying softImpute: " + str(isSymmetric(Kxx_soft)))
-            print("Kxx_mf is symmetric after applying MatrixFactorization: " + str(isSymmetric(Kxx_mf)))
-            svd_error = computeRMSE(Kxx_symm.numpy(), Kxx_svd)
-            soft_error = computeRMSE(Kxx_symm.numpy(), Kxx_soft)
-            mf_error = computeRMSE(Kxx_symm.numpy(), Kxx_mf)
+            # start = timer()
+            # Kxx_mf = matrix_completion(Kxx_perturbated)
+            # end = timer()
+            # diff = end - start
+            # print(f"Matrix factorization: {diff}")
+            svd_error = computeRMSE(Kxx_symm, Kxx_svd)
+            soft_error = computeRMSE(Kxx_symm, Kxx_soft)
+            # mf_error = computeRMSE(Kxx_symm, Kxx_mf)
             print("Errors of the different methods:")
             print(f"Iterative svd error: {svd_error}")
             print(f"SoftImpute error: {soft_error}")
-            print(f"Matrix Factorization error: {mf_error}")
+            # print(f"Matrix Factorization error: {mf_error}")
 
             print("Classification:")
             A_original = solve_system(Kxx_symm, Y_1hot)
             A_svd = solve_system(Kxx_svd, Y_1hot)
             A_soft = solve_system(Kxx_soft, Y_1hot)
-            A_mf = solve_system(Kxx_mf, Y_1hot)
+            # A_mf = solve_system(Kxx_mf, Y_1hot)
 
             _, Yv = dataset.load_full(dataset.validation)
             Kxvx = load_kern(f["Kxvx"], 0)
@@ -103,7 +91,7 @@ def main(_):
             print_accuracy(A_original, Kxvx, Yv, "validation_orig")
             print_accuracy(A_svd, Kxvx, Yv, "validation_svd")
             print_accuracy(A_soft, Kxvx, Yv, "validation_soft")
-            print_accuracy(A_mf, Kxvx, Yv, "validation_mf")
+            # print_accuracy(A_mf, Kxvx, Yv, "validation_mf")
 
             print('Testing:')
             _, Yt = dataset.load_full(dataset.test)
@@ -112,7 +100,7 @@ def main(_):
             print_accuracy(A_original, Kxtx, Yt, "test_orig")
             print_accuracy(A_svd, Kxtx, Yt, "test_svd")
             print_accuracy(A_soft, Kxtx, Yt, "test_soft")
-            print_accuracy(A_mf, Kxtx, Yt, "test_mf")
+            # print_accuracy(A_mf, Kxtx, Yt, "test_mf")
 
             del Kxx
             del Kxx_symm
@@ -122,11 +110,9 @@ def main(_):
             del Kxx_svd
 
         else:
+            # Base Case
             Kxx_symm = constructSymmetricIfNotSymmetric(Kxx.numpy())
-            # plotEigenvalues(Kxx_symm)
-            #
-            # max_val = torch.max(torch.tensor(Kxx_symm)).item()
-            # print(f"Maximum value of Kxx: {max_val}")
+            plotEigenvalues(Kxx_symm)
 
             print("Solving Kxx^{-1} Y")
             A = solve_system(Kxx_symm, Y_1hot)

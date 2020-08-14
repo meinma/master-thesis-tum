@@ -33,15 +33,18 @@ class Nystroem:
 
     def sample(self):
         """
-        Sample m data points for which the kernel is evaluated exactly
+        Choose the m first points of the training set for which the kernel is evaluated exactly
         """
         self.indices = list(range(self.n_components))
         self.subset = Subset(self.dataset, self.indices)
 
     def computeKernelMatrices(self):
-        """
+        """ Computes the C matrix containing the kernel between the sampled points and the all data points
+        in the training set. The matrix is stored in a h5py file.
+        Computes the diagonal additionally to obtain more accurate results
         @return:
         """
+
         def kern(x, x2, **args):
             with torch.no_grad():
                 return self.model(x.cuda(), x2.cuda(), **args).detach().cpu().numpy()
@@ -57,7 +60,7 @@ class Nystroem:
     def loadMatrices(self):
         """
 
-        @return: the matrices W and C which have been computed before and stored as h5py file
+        @return: the matrix C and C_diag which have been computed before and stored as h5py file
         """
         with h5py.File(self.in_path, "r") as f:
             print("Loading kernel")
@@ -73,6 +76,7 @@ class Nystroem:
         self.computeKernelMatrices()
         C, C_diag = self.loadMatrices()
         np.fill_diagonal(C, C_diag[:self.n_components])
+        # Compute W corresponding to the upper squared part of C
         W = C[:self.n_components, :self.n_components]
         u, sigma, vt = np.linalg.svd(W, full_matrices=False)
         u_k = u[:, :self.k]

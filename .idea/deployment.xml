@@ -9,6 +9,13 @@
           </mappings>
         </serverdata>
       </paths>
+      <paths name="ge25jez@atsccs68.in.tum.de:22 password">
+        <serverdata>
+          <mappings>
+            <mapping deploy="" />
+          </mappings>
+        </serverdata>
+      </paths>
     </serverData>
     <option name="myAutoUpload" value="ALWAYS" />
   </component>
