@@ -5,11 +5,9 @@ import numpy as np
 from tqdm import tqdm
 
 from matrix_factorization.factorization import iterativeSVD, softImpute, matrix_completion
-from utils.utils import computeRMSE, generateSquareRandomMatrix, deleteValues, computeMeanVariance
-from utils.utils import createPlots
+from utils.utils import computeRMSE, createPlots, generateSquareRandomMatrix, deleteValues, computeMeanVariance
 
 
-# TODO Adjust time measurements properly
 def startExperiment():
     fractions = np.arange(0.1, 1, 0.1)
     svd_times = []

@@ -1,6 +1,7 @@
 import copy
 import random
 
+import h5py
 import matplotlib.pyplot as plt
 import numpy as np
 import scipy
@@ -11,20 +12,21 @@ import torch
 sn.set()
 
 
-def createPlots(moments, fractions, name):
+def createPlots(moments, fractions, title, name):
     """
     Creates plots for the given moment data on y and fractions data on x with name as title
+    @param title: sets the title
     @param moments: contains expected values or variances of the errors
     of the matrix approximation methods on the y-axis
     @param fractions: contains the values for the x-axis
-    @param name: sets the title
+    @param name: specifies name for the plot
     @return: None
     """
     plt.figure()
-    plt.title(f"{name} values of the errors over the percentage of data which should be approximated")
+    plt.title(f"{title}")
     plt.plot(fractions, moments[0], label='svd iteration')
-    plt.plot(fractions, moments[1], label='matrix factorization')
-    plt.plot(fractions, moments[2], label='soft impute')
+    plt.plot(fractions, moments[2], label='nystroem approximation')
+    plt.plot(fractions, moments[1], label='soft impute')
     plt.legend()
     plt.savefig(f'./plots/{name}.svg')
 
@@ -150,6 +152,49 @@ def diag_add(K, diag):
         raise TypeError("What do I do with a `{}`, K={}?".format(type(K), K))
 
 
+def computePredictions(A, Kxvx):
+    """
+    Computes Kxvx Kxx^-1 Y to obtain the predictions for the points xv
+    Computes the predictions of Gaussian Processes Given A = Kxx^(-1) * Y
+    and the kernel of the data points for the predictions
+    @param A: the result of Kxx^-1 Y
+    @param Kxvx: the kernel matrix of the unobserved data points and the observed ones
+    @return: predictions for the unobserved data points
+    """
+    return (Kxvx @ A).argmax(dim=1)
+
+
+def compute_recall(Y_pred, Y, key):
+    """
+    Computes the recall given the the predictions and the ground truth labels
+    @param Y_pred: predictions of data points
+    @param Y: ground truth labels of data points
+    @return: recall
+    """
+    recall = sklearn.metrics.recall_score(Y, Y_pred)
+    print(f"{key} recall: {recall * 100}%")
+    return recall
+
+
+def compute_precision(Y_pred, Y, key):
+    """
+    Computes the precision given the predictions and the ground truth labels
+    @param Y_pred: predictions of data points
+    @param Y: ground truth labels of data points
+    @param key: specifies for which dataset the predictions were generated
+    @return: precision
+    """
+    precision = sklearn.metrics.precision_score(Y, Y_pred)
+    print(f"{key} precision: {precision * 100}%")
+    return precision
+
+
+def compute_accuracy(Y_pred, Y, key):
+    accuracy = sklearn.metrics.accuracy_score(Y, Y_pred)
+    print(f"{key} accuracy: {accuracy * 100}%")
+    return accuracy
+
+
 def print_accuracy(A, Kxvx, Y, key):
     Ypred = (Kxvx @ A).argmax(dim=1)
     acc = sklearn.metrics.accuracy_score(Y, Ypred)
@@ -214,3 +259,18 @@ def computeMeanVariance(error_list: list) -> tuple:
         means.append(np.mean(e_list))
         variances.append(np.var(e_list))
     return means, variances
+
+
+def deleteDataset(path, nyst=False):
+    """
+        Deletes the h5py dataset given by the path
+        @param nyst: Defines if the dataset belongs to Nystrom approximator or not
+        @param path: defines the path to the dataset which is supposed to be deleted
+        @return:
+        """
+    with h5py.File(path, 'a') as f:
+        if nyst:
+            del f['C']
+            del f['Cd']
+        else:
+            del f['Kxx']
