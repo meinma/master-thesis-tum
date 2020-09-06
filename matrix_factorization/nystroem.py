@@ -4,12 +4,13 @@ import torch
 from torch.utils.data import Subset
 
 from cnn_gp.kernel_save_tools import save_K
-from utils.utils import load_kern
+from utils import load_kern
 
 
+# todo check for nystroem if it is computationally faster to compute squared matrix Kxx and compute the missing values
 class Nystroem:
-    def __init__(self, n_components, k, dataset, model, batch_size, out_path, worker_rank=0, n_workers=1,
-                 in_path=None, same=True, diag=False):
+    def __init__(self, n_components, k, dataset, model, out_path,
+                 in_path=None):
         if in_path is None:
             self.in_path = out_path
         else:
@@ -21,12 +22,7 @@ class Nystroem:
         else:
             self.k = k
         self.dataset = dataset
-        self.batch_size = batch_size
-        self.n_workers = n_workers
-        self.worker_rank = worker_rank
         self.out_path = out_path
-        self.same = same
-        self.diag = diag
         self.indices = None
         self.subset = None
         self.sample()
@@ -50,8 +46,8 @@ class Nystroem:
                 return self.model(x.cuda(), x2.cuda(), **args).detach().cpu().numpy()
 
         with h5py.File(self.out_path, "w") as f:
-            kwargs = dict(worker_rank=self.worker_rank, n_workers=self.n_workers,
-                          batch_size=self.batch_size, print_interval=2.)
+            kwargs = dict(worker_rank=0, n_workers=1,
+                          batch_size=200, print_interval=2.)
             # rectangular matrix consisting of W and S
             save_K(f, kern, name="C", X=self.dataset, X2=self.subset, diag=False, **kwargs)
             #  Compute the diagonal for C for better accuracy

@@ -14,7 +14,6 @@ FLAGS = absl.app.flags.FLAGS
 
 
 def main(_):
-    torch.set_num_threads(4)
     print(f"CUDA_VISIBLE_DEVICES={os.environ['CUDA_VISIBLE_DEVICES']}")
     n_workers, worker_rank = FLAGS.n_workers, FLAGS.worker_rank
     config = importlib.import_module(f"configs.{FLAGS.config}")

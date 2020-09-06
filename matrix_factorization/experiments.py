@@ -5,7 +5,7 @@ import numpy as np
 from tqdm import tqdm
 
 from matrix_factorization.factorization import iterativeSVD, softImpute, matrix_completion
-from utils.utils import computeRMSE, createPlots, generateSquareRandomMatrix, deleteValues, computeMeanVariance
+from utils import computeRMSE, createPlots, generateSquareRandomMatrix, deleteValues, computeMeanVariance
 
 
 def startExperiment():
@@ -30,20 +30,23 @@ def startExperiment():
         uv_error.clear()
         impute_error.clear()
         # Iterate ten times to eliminate outliers
-        for _ in tqdm(range(10)):
+        for _ in tqdm(range(5)):
             print("Generate Matrix")
             x = generateSquareRandomMatrix(5000)
             print(f"Delete random values{fraction}")
             x_tilde = deleteValues(x, fraction=fraction)
             start = timer()
             x_svd = iterativeSVD(x_tilde)
-            svd_time.append(timer() - start)
+            diff = (timer() - start) // 60
+            svd_time.append(diff)
             start = timer()
             x_uv = matrix_completion(x_tilde)
-            uv_time.append(timer() - start)
+            diff = (timer() - start) // 60
+            uv_time.append(diff)
             start = timer()
             x_impute = softImpute(x_tilde)
-            impute_time.append(timer() - start)
+            diff = (timer() - start) // 60
+            impute_time.append(diff)
             print("Start computing the errors")
             svd_error.append(computeRMSE(x, x_svd))
             uv_error.append(computeRMSE(x, x_uv))
@@ -64,9 +67,11 @@ def startExperiment():
     moments = svd_moments[0], uv_moments[0], impute_moments[0]
     variances = svd_moments[1], uv_moments[1], impute_moments[1]
     print('Plotting')
-    createPlots(times, fractions, name='Measured time')
-    createPlots(moments, fractions, name="Expectation values")
-    createPlots(variances, fractions, name="Variances")
+    createPlots(times, fractions, name='Time5000', title='Time over percentage of approximated kernel values',
+                xlabel='Fraction of approximated values', ylabel='Time in minutes')
+    createPlots(moments, fractions, name="Error5000", title='Mean error over percentage of approximated kernel values')
+    createPlots(variances, fractions, name="Variances5000",
+                title='Variances over percentage of approximated kernel values')
 
 
 if __name__ == "__main__":

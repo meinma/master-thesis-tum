@@ -8,11 +8,18 @@ import scipy
 import seaborn as sn
 import sklearn
 import torch
+from torch.utils.data import DataLoader
 
 sn.set()
 
+__all__ = ('createPlots', 'plotEigenvalues', 'oneHotEncoding', 'computeRMSE', 'compute_recall', 'compute_accuracy',
+           'computeMeanVariance', 'constructSymmetricIfNotSymmetric', 'compute_precision', 'computePredictions',
+           'constructSymmetricMatrix', 'isSymmetric', 'print_accuracy', 'load_kern', 'loadTargets', 'deleteDataset',
+           'solve_system_old', 'deleteValues', 'diag_add', 'generateSquareRandomMatrix', 'perturbateMatrix',
+           'solve_system')
 
-def createPlots(moments, fractions, title, name):
+
+def createPlots(moments, fractions, title, name, xlabel, ylabel):
     """
     Creates plots for the given moment data on y and fractions data on x with name as title
     @param title: sets the title
@@ -23,7 +30,10 @@ def createPlots(moments, fractions, title, name):
     @return: None
     """
     plt.figure()
+    plt.rcParams.update({'axes.titlesize': 'small'})
     plt.title(f"{title}")
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
     plt.plot(fractions, moments[0], label='svd iteration')
     plt.plot(fractions, moments[2], label='nystroem approximation')
     plt.plot(fractions, moments[1], label='soft impute')
@@ -90,6 +100,14 @@ def constructSymmetricIfNotSymmetric(x: np.ndarray) -> np.ndarray:
         return x
     else:
         return constructSymmetricMatrix(x)
+
+
+def constructSymmetricMatrixwithTorch(x: torch.float64):  # -> torch.float64:
+    # x_sym = torch.zeros_like(x).cuda()
+    # x = x.cuda()
+    x_up = torch.triu(x)
+    x_sym = x_up + torch.transpose(x_up, 0, 1) - torch.diag(torch.diag(x_up))
+    return x_sym
 
 
 def constructSymmetricMatrix(x: np.ndarray) -> np.ndarray:
@@ -171,7 +189,7 @@ def compute_recall(Y_pred, Y, key):
     @param Y: ground truth labels of data points
     @return: recall
     """
-    recall = sklearn.metrics.recall_score(Y, Y_pred)
+    recall = sklearn.metrics.recall_score(Y, Y_pred, average='micro')
     print(f"{key} recall: {recall * 100}%")
     return recall
 
@@ -184,7 +202,7 @@ def compute_precision(Y_pred, Y, key):
     @param key: specifies for which dataset the predictions were generated
     @return: precision
     """
-    precision = sklearn.metrics.precision_score(Y, Y_pred)
+    precision = sklearn.metrics.precision_score(Y, Y_pred, average='micro')
     print(f"{key} precision: {precision * 100}%")
     return precision
 
@@ -264,13 +282,24 @@ def computeMeanVariance(error_list: list) -> tuple:
 def deleteDataset(path, nyst=False):
     """
         Deletes the h5py dataset given by the path
-        @param nyst: Defines if the dataset belongs to Nystrom approximator or not
+        @param name: specifies dataset within file which is supposed to be deleted
         @param path: defines the path to the dataset which is supposed to be deleted
         @return:
         """
     with h5py.File(path, 'a') as f:
+        # del f[name]
         if nyst:
             del f['C']
             del f['Cd']
         else:
             del f['Kxx']
+
+
+def loadTargets(dataset):
+    """
+    Return labels for a given dataset
+    @param dataset: containing data and its corresponding labels
+    @return: labels
+    """
+    _, Y = next(iter(DataLoader(dataset, batch_size=len(dataset))))
+    return Y

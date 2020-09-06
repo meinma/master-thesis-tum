@@ -12,7 +12,7 @@ from tqdm import tqdm
 from cnn_gp import DatasetFromConfig
 from cnn_gp import save_K
 from configs import mnist_paper_convnet_gp
-from utils.utils import load_kern, deleteDataset
+from utils import load_kern, deleteDataset
 
 sn.set()
 
@@ -28,7 +28,7 @@ def warmUp_GPU():
 
 def loadModel(config=mnist_paper_convnet_gp):
     """
-    Loads the model from the given config and pushes it to GPU
+    Loads the model from the given config
     @return: model on GPU
     """
     return config.initial_model.cuda()
@@ -46,7 +46,7 @@ def loadDataset(path="./scratch/datasets/", config=mnist_paper_convnet_gp):
 
 def sample_data(dataset, samples):
     """
-    Takes the first samples of the given dataset
+    Takes random samples of the given dataset
     @param dataset: specifies dataset
     @param samples: specifies amount of samples
     @return: subset of samples of the given dataset

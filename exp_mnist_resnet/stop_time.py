@@ -1,4 +1,5 @@
 from timeit import default_timer as timer
+
 import fire
 import h5py
 import numpy as np
@@ -19,7 +20,7 @@ def endTimer():
     start = hf.get('timing')
     start = np.array(start)
     hf.close()
-    diff = end - start
+    diff = (end - start) // 60
     print("Run time:")
     print(diff)
 
