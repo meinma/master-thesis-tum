@@ -62,6 +62,7 @@ class Nystroem:
             print("Loading kernel")
             C = load_kern(f["C"], 0)
             C_diag = load_kern(f["Cd"], 0, diag=True)
+            f.close()
         return C.numpy(), C_diag.numpy()
 
     def fit_transform(self):

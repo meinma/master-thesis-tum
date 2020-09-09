@@ -41,7 +41,7 @@ def loadDataset(path="./scratch/datasets/", config=mnist_paper_convnet_gp):
     @param config: config
     @return:
     """
-    return DatasetFromConfig(path, config=config).data_full
+    return DatasetFromConfig(path, config=config).train
 
 
 def sample_data(dataset, samples):
@@ -99,10 +99,14 @@ def plotTimes():
             timings[index][i] = diff
             deleteDataset(path)
     means = np.mean(timings, axis=1)
+    # Fit a polynomial to the data
+    parameters = np.polyfit(kernelSizes, means, deg=2)
+    polynomial = np.poly1d(parameters)
     plt.title('Time to compute the kernel matrix over the amount of data points')
     plt.xlabel('Size of the kernel matrix')
     plt.ylabel('Computational time in minutes')
-    plt.plot(kernelSizes, means)
+    plt.plot(kernelSizes, means, label="Original Plot")
+    plt.plot(kernelSizes, polynomial(kernelSizes), label="Fitted polynomial of degree 2")
     plt.show()
     plt.savefig('./plots/beginnningPlot.svg')
     plt.close()

@@ -8,6 +8,7 @@ import scipy
 import seaborn as sn
 import sklearn
 import torch
+from scipy.sparse.linalg import lsmr
 from torch.utils.data import DataLoader
 
 sn.set()
@@ -19,7 +20,7 @@ __all__ = ('createPlots', 'plotEigenvalues', 'oneHotEncoding', 'computeRMSE', 'c
            'solve_system')
 
 
-def createPlots(moments, fractions, title, name, xlabel, ylabel):
+def createPlots(moments, fractions, title, name, xlabel, ylabel, mf=False):
     """
     Creates plots for the given moment data on y and fractions data on x with name as title
     @param title: sets the title
@@ -34,9 +35,13 @@ def createPlots(moments, fractions, title, name, xlabel, ylabel):
     plt.title(f"{title}")
     plt.xlabel(xlabel)
     plt.ylabel(ylabel)
-    plt.plot(fractions, moments[0], label='svd iteration')
-    plt.plot(fractions, moments[2], label='nystroem approximation')
-    plt.plot(fractions, moments[1], label='soft impute')
+    if mf:
+        label2 = "matrix factorization"
+    else:
+        label2 = "Nystroem approximation"
+    plt.plot(fractions, moments[0], label='Svd iteration')
+    plt.plot(fractions, moments[1], label='Soft impute')
+    # plt.plot(fractions, moments[2], label=label2)
     plt.legend()
     plt.savefig(f'./plots/{name}.svg')
 
@@ -134,6 +139,17 @@ def perturbateMatrix(X):
         sample = np.random.randint(0, columns - 1, 3)
         X[row][sample] = np.nan
     return X
+
+
+def solve_system_fast(Kxx: np.ndarray, Y: torch.float64) -> torch.float64:
+    """
+    Inverts the Kxx matrix
+    @param Kxx: kernel matrix
+    @param Y: one hot encoded target matrix
+    @return: The inverse of Kxx as torch
+    """
+    solution = [lsmr(Kxx, Y[:, k])[0] for k in range(Y.shape[1])]
+    return torch.from_numpy(np.column_stack(solution))
 
 
 def solve_system(Kxx: np.ndarray, Y) -> torch.float64:
