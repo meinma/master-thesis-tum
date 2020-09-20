@@ -81,14 +81,15 @@ def actionToMeasure(model, data, path):
 
 
 def plotTimes():
-    path = './plotting/timing.h5'
+    path = './plotting/timingwithfit.h5'
     kernelSizes = [200, 5000, 10000, 15000, 20000, 25000]
-    repetitions = 5
+    repetitions = 3
     dataset = loadDataset()
     model = loadModel()
     timings = np.zeros((len(kernelSizes), repetitions))
     warmUp_GPU()
     for index, size in tqdm(enumerate(kernelSizes)):
+        print(size)
         for i in tqdm(range(repetitions)):
             data = sample_data(dataset, size)
             start = timer()  # CPU measurement
@@ -101,14 +102,16 @@ def plotTimes():
     means = np.mean(timings, axis=1)
     # Fit a polynomial to the data
     parameters = np.polyfit(kernelSizes, means, deg=2)
+    print(parameters)
     polynomial = np.poly1d(parameters)
     plt.title('Time to compute the kernel matrix over the amount of data points')
-    plt.xlabel('Size of the kernel matrix')
+    plt.xlabel('Number of data points for which the kernel matrix is computed')
     plt.ylabel('Computational time in minutes')
     plt.plot(kernelSizes, means, label="Original Plot")
     plt.plot(kernelSizes, polynomial(kernelSizes), label="Fitted polynomial of degree 2")
+    plt.legend()
     plt.show()
-    plt.savefig('./plots/beginnningPlot.svg')
+    plt.savefig('./plots/beginnningPlot_fit.svg')
     plt.close()
 
 
