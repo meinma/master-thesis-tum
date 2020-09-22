@@ -16,11 +16,11 @@ sn.set()
 __all__ = ('createPlots', 'plotEigenvalues', 'oneHotEncoding', 'computeRMSE', 'compute_recall', 'compute_accuracy',
            'computeMeanVariance', 'constructSymmetricIfNotSymmetric', 'compute_precision', 'computePredictions',
            'constructSymmetricMatrix', 'isSymmetric', 'print_accuracy', 'load_kern', 'loadTargets', 'deleteDataset',
-           'solve_system_old', 'deleteValues', 'diag_add', 'generateSquareRandomMatrix', 'perturbateMatrix',
-           'solve_system')
+           'solve_system_old', 'deleteValues', 'diag_add', 'generateSquareRandomMatrix',
+           'solve_system', 'solve_system_fast', 'computeRelativeRMSE', 'readTimeandApprox')
 
 
-def createPlots(moments, fractions, title, name, xlabel, ylabel, mf=False):
+def createPlots(moments, fractions, title, name, xlabel, ylabel):
     """
     Creates plots for the given moment data on y and fractions data on x with name as title
     @param title: sets the title
@@ -31,17 +31,15 @@ def createPlots(moments, fractions, title, name, xlabel, ylabel, mf=False):
     @return: None
     """
     plt.figure()
-    plt.rcParams.update({'axes.titlesize': 'small'})
+    plt.rcParams.update({'axes.titlesize': 'x-small'})
     plt.title(f"{title}")
     plt.xlabel(xlabel)
     plt.ylabel(ylabel)
-    if mf:
-        label2 = "matrix factorization"
-    else:
-        label2 = "Nystroem approximation"
-    plt.plot(fractions, moments[0], label='Svd iteration')
+    plt.plot(fractions, moments[0], label='Iterative svd')
     plt.plot(fractions, moments[1], label='Soft impute')
-    # plt.plot(fractions, moments[2], label=label2)
+    plt.plot(fractions, moments[2], label='Matrix Factorization')
+    if len(moments) > 3:
+        plt.plot(fractions, moments[3], label='Nystroem method')
     plt.legend()
     plt.savefig(f'./plots/{name}.svg')
 
@@ -63,7 +61,7 @@ def plotEigenvalues(x: np.ndarray):
     plt.ylabel("Eigenvalue")
     plt.title("Plot of the eigenvalues of the K_xx matrix")
     plt.show()
-    plt.savefig('./plots/eigenvalues25.svg')
+    plt.savefig('./plots/eigenvalues.svg')
     plt.close()
     plt.figure()
     plt.plot(np.log(eigenvalues))
@@ -107,20 +105,13 @@ def constructSymmetricIfNotSymmetric(x: np.ndarray) -> np.ndarray:
         return constructSymmetricMatrix(x)
 
 
-def constructSymmetricMatrixwithTorch(x: torch.float64):  # -> torch.float64:
-    # x_sym = torch.zeros_like(x).cuda()
-    # x = x.cuda()
-    x_up = torch.triu(x)
-    x_sym = x_up + torch.transpose(x_up, 0, 1) - torch.diag(torch.diag(x_up))
-    return x_sym
-
-
-def constructSymmetricMatrix(x: np.ndarray) -> np.ndarray:
+def constructSymmetricMatrix(x: torch.float64) -> np.ndarray:
     """
     Constructs a symmetric matrix given a matrix x only with only entries in the upper triangle
     @param x: matrix only filled in upper triangle
     @return: symmetric matrix based on x
     """
+    assert x.dtype == torch.float64
     x_sym = np.empty_like(x)
     x_sym[np.triu_indices(x.shape[0], k=0)] = x[np.triu_indices(x.shape[0], k=0)]
     x_sym = x_sym + x_sym.T - np.diag(np.diag(x_sym))
@@ -129,16 +120,6 @@ def constructSymmetricMatrix(x: np.ndarray) -> np.ndarray:
 
 def isSymmetric(x, rtol=1e-5, atol=1e-5):
     return np.allclose(x, x.T, rtol=rtol, atol=atol)
-
-
-def perturbateMatrix(X):
-    columns = X.shape[1]
-    rows = X.shape[0]
-    for row in range(rows):
-        ##Sampling
-        sample = np.random.randint(0, columns - 1, 3)
-        X[row][sample] = np.nan
-    return X
 
 
 def solve_system_fast(Kxx: np.ndarray, Y: torch.float64) -> torch.float64:
@@ -244,15 +225,30 @@ def load_kern(dset, i, diag=False):
     return torch.from_numpy(A).to(dtype=torch.float64)
 
 
-def computeRMSE(x: np.ndarray, y: np.ndarray) -> np.float:
+def computeRMSE(x: np.ndarray, y: np.ndarray, fraction) -> np.float:
     """
+    @param fraction: fraction of predicted  values
     @param x: original matrix which has all entries
     @param y: matrix which was filled by matrix completion algorithms
     @return: RMSE (root mean squared error) between the two matrices x and y
     """
+    N = int(fraction * y.shape[0] * y.shape[1])
     diff = x - y
     diff = diff ** 2
-    return np.sqrt(np.sum(diff) / (x.shape[0] * x.shape[1]))
+    diff = diff / N
+    return np.sqrt(np.sum(diff))
+
+
+def computeRelativeRMSE(orig, approx, fraction) -> np.float:
+    """
+    Computes the relative RMSE
+    @param orig: contains the true matrix which is approximated
+    @param approx: approximation of x
+    @param fraction: fraction of values which is approximated of x
+    @return: relative RMSE
+    """
+    weighting = 1 / (np.max(orig) - np.min(orig))
+    return weighting * computeRMSE(orig, approx, fraction)
 
 
 def generateSquareRandomMatrix(columns: int) -> np.ndarray:
@@ -295,7 +291,7 @@ def computeMeanVariance(error_list: list) -> tuple:
     return means, variances
 
 
-def deleteDataset(path, nyst=False):
+def deleteDataset(path, name='Kxx', nyst=False):
     """
         Deletes the h5py dataset given by the path
         @param name: specifies dataset within file which is supposed to be deleted
@@ -308,7 +304,24 @@ def deleteDataset(path, nyst=False):
             del f['C']
             del f['Cd']
         else:
-            del f['Kxx']
+            if name == 'Kxx':
+                del f['Kxx']
+            else:
+                del f[name]
+
+
+def readTimeandApprox(path):
+    """
+    Reads time and approximation from given file
+    @param path: Path of the file
+    @return: numpy array from h5py file
+    """
+    with h5py.File(path, 'r') as f:
+        time = np.array(f.get('time'))
+        approx = np.array(f.get('approx'))
+    deleteDataset(path, 'time')
+    deleteDataset(path, 'approx')
+    return time, approx
 
 
 def loadTargets(dataset):

@@ -80,20 +80,15 @@ def startExperiment():
     times = svd_time_expectation, impute_time_expectation, uv_time_expectation
     moments = svd_moments[0], impute_moments[0], uv_moments[0]
     variances = svd_moments[1], impute_moments[1], uv_moments[1]
-    # variances = uv_moments[1]
-    # with h5py.File("mf.h5", 'w') as f:
-    #     f.create_dataset("times", data=times)
-    #     f.create_dataset("error_moments", data=uv_moments)
-    #     f.close()
     print('Plotting')
-    createPlots(times, fractions, name='AllTime5000', title='Time over fraction of approximated kernel values',
-                xlabel='Fraction of approximated values', ylabel='Time in minutes', mf=True)
-    createPlots(moments, fractions, name="AllError5000", title='Relative mean'
-                                                               ' error over fraction of approximated kernel values'
-                , xlabel='Fraction of approximated values', ylabel='Relative RMSE', mf=True)
-    createPlots(variances, fractions, name="AllVariance5000",
+    createPlots(times, fractions, title='Time over fraction of approximated kernel values', name='AllTime5000',
+                xlabel='Fraction of approximated values', ylabel='Time in minutes')
+    createPlots(moments, fractions, title='Relative mean'
+                                          ' error over fraction of approximated kernel values', name="AllError5000",
+                xlabel='Fraction of approximated values', ylabel='Relative RMSE')
+    createPlots(variances, fractions,
                 title='Variances of the relative error over fraction of approximated kernel values',
-                xlabel='Fraction of approximated values', ylabel='Variance of relative RMSE', mf=True)
+                name="AllVariance5000", xlabel='Fraction of approximated values', ylabel='Variance of relative RMSE')
 
 
 if __name__ == "__main__":
