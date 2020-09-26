@@ -6,9 +6,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import scipy
 import seaborn as sn
-import sklearn
 import torch
 from scipy.sparse.linalg import lsmr
+from sklearn import metrics
 from torch.utils.data import DataLoader
 
 sn.set()
@@ -39,7 +39,7 @@ def createPlots(moments, fractions, title, name, xlabel, ylabel):
     plt.plot(fractions, moments[1], label='Soft impute')
     plt.plot(fractions, moments[2], label='Matrix Factorization')
     if len(moments) > 3:
-        plt.plot(fractions, moments[3], label='Nystroem method')
+        plt.plot(fractions, moments[3], label='Nystroem Approximation')
     plt.legend()
     plt.savefig(f'./plots/{name}.svg')
 
@@ -122,7 +122,7 @@ def isSymmetric(x, rtol=1e-5, atol=1e-5):
     return np.allclose(x, x.T, rtol=rtol, atol=atol)
 
 
-def solve_system_fast(Kxx: np.ndarray, Y: torch.float64) -> torch.float64:
+def solve_system_fast(Kxx: np.ndarray, Y: np.ndarray) -> torch.float64:
     """
     Inverts the Kxx matrix
     @param Kxx: kernel matrix
@@ -186,7 +186,7 @@ def compute_recall(Y_pred, Y, key):
     @param Y: ground truth labels of data points
     @return: recall
     """
-    recall = sklearn.metrics.recall_score(Y, Y_pred, average='micro')
+    recall = metrics.recall_score(Y, Y_pred, average='micro')
     print(f"{key} recall: {recall * 100}%")
     return recall
 
@@ -199,20 +199,20 @@ def compute_precision(Y_pred, Y, key):
     @param key: specifies for which dataset the predictions were generated
     @return: precision
     """
-    precision = sklearn.metrics.precision_score(Y, Y_pred, average='micro')
+    precision = metrics.precision_score(Y, Y_pred, average='micro')
     print(f"{key} precision: {precision * 100}%")
     return precision
 
 
 def compute_accuracy(Y_pred, Y, key):
-    accuracy = sklearn.metrics.accuracy_score(Y, Y_pred)
+    accuracy = metrics.accuracy_score(Y, Y_pred)
     print(f"{key} accuracy: {accuracy * 100}%")
     return accuracy
 
 
 def print_accuracy(A, Kxvx, Y, key):
     Ypred = (Kxvx @ A).argmax(dim=1)
-    acc = sklearn.metrics.accuracy_score(Y, Ypred)
+    acc = metrics.accuracy_score(Y, Ypred)
     print(f"{key} accuracy: {acc * 100}%")
 
 
@@ -235,8 +235,7 @@ def computeRMSE(x: np.ndarray, y: np.ndarray, fraction) -> np.float:
     N = int(fraction * y.shape[0] * y.shape[1])
     diff = x - y
     diff = diff ** 2
-    diff = diff / N
-    return np.sqrt(np.sum(diff))
+    return np.sqrt(np.sum(diff)) / N
 
 
 def computeRelativeRMSE(orig, approx, fraction) -> np.float:

@@ -5,7 +5,6 @@ from timeit import default_timer as timer
 import fire
 import h5py
 import numpy as np
-import seaborn as sn
 import torch
 from fancyimpute import MatrixFactorization, SoftImpute, IterativeSVD
 from torch.utils.data import Subset
@@ -14,10 +13,11 @@ from tqdm import tqdm
 from cnn_gp import save_K
 from matrix_factorization.nystroem import Nystroem
 from plotting.createStartPlot import loadModel, loadDataset
-from utils import computeRelativeRMSE, createPlots, deleteValues, \
-    computeMeanVariance, deleteDataset, oneHotEncoding, solve_system, computePredictions, compute_accuracy, \
-    compute_precision, compute_recall, constructSymmetricMatrix, readTimeandApprox
+from utils import computeRelativeRMSE, createPlots, load_kern, \
+    computeMeanVariance, deleteDataset, oneHotEncoding, computePredictions, compute_accuracy, \
+    readTimeandApprox, loadTargets, solve_system_fast
 
+#### For error plot
 NYSTROEM_PATH = './plotting/nystroem.h5'
 ORIGINAL_PATH = './plotting/original.h5'
 MF_PATH = './plotting/mf.h5'
@@ -26,11 +26,19 @@ SOFT_PATH = './plotting/soft.h5'
 PERT_PATH = './plotting/Kxx_pert.h5'
 
 FRACTIONS = np.arange(0.1, 1, 0.1)
-MATRIX_SIZE = (25000, 25000)
-sn.set()
+MATRIX_SIZE = (5000, 5000)
+####
+
+## For Accuracy Plot###
+NYSTROEM_PATH_ACC = './plotting/accuracy_files/nystroem.h5'
+ORIGINAL_PATH_ACC = './plotting/accuracy_files/original.h5'  # for Kxx and Kxvx
+MF_PATH_ACC = './plotting/accuracy_files/mf.h5'
+SVD_PATH_ACC = './plotting/accuracy_files/svd.h5'
+SOFT_PATH_ACC = './plotting/accuracy_files/soft.h5'
+SUBMATRIX_PATH_ACC = './plotting/accuracy_files/Kxx_pert.h5'
 
 
-def evaluate(Kxx_approx, Y, Kxvx, Y_val, key) -> (float, float, float):
+def evaluate(Kxx_approx, Y, Kxvx, Y_val, key) -> float:
     """
     Returns accuracy, precision and recall for an approximated kernel matrix Kxx
     @param key: specify what you compute ('validation' or 'test')
@@ -41,12 +49,13 @@ def evaluate(Kxx_approx, Y, Kxvx, Y_val, key) -> (float, float, float):
     @return: accuracy, precision, recall
     """
     Y_one_hot = oneHotEncoding(Y)
-    A = solve_system(Kxx_approx, Y_one_hot)
+    A = solve_system_fast(Kxx_approx, Y_one_hot.numpy())
     val_predictions = computePredictions(A, Kxvx)
     accuracy = compute_accuracy(val_predictions, Y_val, key)
-    precision = compute_precision(val_predictions, Y_val, key)
-    recall = compute_recall(val_predictions, Y_val, key)
-    return accuracy, precision, recall
+    return accuracy
+    # precision = compute_precision(val_predictions, Y_val, key)
+    # recall = compute_recall(val_predictions, Y_val, key)
+    # return accuracy, precision, recall
 
 
 def getFirstSamples(dataset, samples: int) -> Subset:
@@ -125,7 +134,6 @@ def compareMethodsOverError(repetitions=3):
     os.system(f"python -m plotting.computeKernel computeKxxMatrix {ORIGINAL_PATH} Kxx")
     os.system(f"python -m plotting.computeKernel loadMatrixFromDiskAndMirror {ORIGINAL_PATH} Kxx")
     with h5py.File(ORIGINAL_PATH, "r") as f:
-        # todo chane to f.get
         Kxx_symm = np.empty(MATRIX_SIZE)
         f['Kxx'].read_direct(Kxx_symm)
         print('Done')
@@ -161,10 +169,11 @@ def compareMethodsOverError(repetitions=3):
                                    dataset=dataset, path=NYSTROEM_PATH)
         for _ in tqdm(range(repetitions)):
             # Create matrix with fraction of values are randomly set to Nan
-            Kxx_pert = deleteValues(Kxx_symm, fraction=fraction)
+            os.system(f'python -m plotting.computeKernel computeKxxPert {ORIGINAL_PATH} {PERT_PATH} {fraction}')
+            # Kxx_pert = deleteValues(Kxx_symm, fraction=fraction)
             # Write Kxx_pert to file so it can be approximated by MF:
-            with h5py.File(PERT_PATH, 'w') as f:
-                f.create_dataset(name="Kxx_pert", shape=MATRIX_SIZE, data=Kxx_pert)
+            # with h5py.File(PERT_PATH, 'w') as f:
+            #     f.create_dataset(name="Kxx_pert", shape=MATRIX_SIZE, data=Kxx_pert)
             # Try to reconstruct with different Methods
             # Iterative SVD
             print("SVD")
@@ -173,12 +182,13 @@ def compareMethodsOverError(repetitions=3):
             svd_time.append(time)
             print(time)
             svd_error.append(computeRelativeRMSE(Kxx_symm, approx, fraction))
-            print("MF")
-            os.system(f"python -m plotting.computeMatrixFactorization {PERT_PATH} {MF_PATH} mf")
-            time, approx = readTimeandApprox(MF_PATH)
-            mf_time.append(time)
-            print(time)
-            mf_error.append(computeRelativeRMSE(Kxx_symm, approx, fraction))
+            # MF
+            # print("MF")
+            # os.system(f"python -m plotting.computeMatrixFactorization {PERT_PATH} {MF_PATH} mf")
+            # time, approx = readTimeandApprox(MF_PATH)
+            # mf_time.append(time)
+            # print(time)
+            # mf_error.append(computeRelativeRMSE(Kxx_symm, approx, fraction))
             # Soft Impute
             print("SOFT")
             os.system(f"python -m plotting.computeMatrixFactorization {PERT_PATH} {SOFT_PATH} soft")
@@ -201,35 +211,38 @@ def compareMethodsOverError(repetitions=3):
             deleteDataset(PERT_PATH, 'Kxx_pert')
         svd_errors.append(list(svd_error[:]))
         soft_errors.append(list(soft_error[:]))
-        mf_errors.append(list(mf_error[:]))
+        # mf_errors.append(list(mf_error[:]))
         nystroem_errors.append(list(nystroem_error[:]))
         svd_times.append(list(svd_time[:]))
         soft_times.append(list(soft_time[:]))
-        mf_times.append(list(mf_time[:]))
+        # mf_times.append(list(mf_time[:]))
         nystroem_times.append(list(nystroem_time[:]))
     svd_moments = computeMeanVariance(svd_errors)
     soft_moments = computeMeanVariance(soft_errors)
     nystroem_moments = computeMeanVariance(nystroem_errors)
-    mf_moments = computeMeanVariance(mf_errors)
+    # mf_moments = computeMeanVariance(mf_errors)
     svd_mean_time = computeMeanVariance(svd_times)[0]
     soft_mean_time = computeMeanVariance(soft_times)[0]
-    mf_mean_time = computeMeanVariance(mf_times)[0]
+    # mf_mean_time = computeMeanVariance(mf_times)[0]
     nystroem_mean_time = computeMeanVariance(nystroem_times)[0]
-    errors = svd_moments[0], soft_moments[0], mf_moments[0], nystroem_moments[0]
-    times = svd_mean_time, soft_mean_time, mf_mean_time, nystroem_mean_time
-    variances = svd_moments[1], soft_moments[1], mf_moments[1], nystroem_moments[1]
+    # errors = svd_moments[0], soft_moments[0], mf_moments[0], nystroem_moments[0]
+    errors = svd_moments[0], soft_moments[0], nystroem_moments[0]
+    # times = svd_mean_time, soft_mean_time, mf_mean_time, nystroem_mean_time
+    times = svd_mean_time, soft_mean_time, nystroem_mean_time
+    variances = svd_moments[1], soft_moments[1], nystroem_moments[1]
+    # variances = svd_moments[1], soft_moments[1], mf_moments[1], nystroem_moments[1]
     deleteDataset(ORIGINAL_PATH)
     print('Plotting')
     createPlots(errors, FRACTIONS,
-                title='Relative RMSE error over fraction of approximated 25 000 * 25 000 kernel matrix',
-                name='AllError25000', xlabel='Fraction of approximated values of the kernel matrix',
+                title='Relative RMSE error over fraction of approximated 20 000 * 20 000 kernel matrix',
+                name='AllError20000', xlabel='Fraction of approximated values of the kernel matrix',
                 ylabel=' Relative RMSE')
-    createPlots(times, FRACTIONS, title="Time in minutes to approximate fraction of 25 000*25 000  kernel matrix",
-                name="AllTime25000", xlabel="Fraction of approximated values of the kernel matrix",
+    createPlots(times, FRACTIONS, title="Time in minutes to approximate fraction of 20 000*20 000  kernel matrix",
+                name="AllTime20000", xlabel="Fraction of approximated values of the kernel matrix",
                 ylabel="Time in minutes")
     createPlots(variances, FRACTIONS,
-                title='Variance of relative RMSE over fraction of approximated 25 000*25 000 kernel matrix',
-                name='AllVariances25000', xlabel='Fraction of approximated values', ylabel="Variance of relative RMSE")
+                title='Variance of relative RMSE over fraction of approximated 20 000*20 000 kernel matrix',
+                name='AllVariances20000', xlabel='Fraction of approximated values', ylabel="Variance of relative RMSE")
 
 
 """"
@@ -242,189 +255,152 @@ FILE BREAK above error, below CLASSIFICATION
 """
 
 
-# todo might be a good idea to have different paths for nystroem and not nystroem
-def measureTime(model, dataset, fraction, mode, path) -> (float, np.ndarray):
-    print(f'Measure time for fraction {fraction}')
-    inverse_fraction = 1 - fraction
-    length = len(dataset)
-    components = int(length * inverse_fraction)
-    subset = getFirstSamples(dataset, components)
-    nystroem_path = path + '/nystroem'
-    if mode == 'nyst':
-        print('Nystroem')
-        start = timer()
-        nystroem = Nystroem(n_components=components, k=None, dataset=dataset, model=model,
-                            path=nystroem_path)
-        erg = nystroem.fit_transform()
-        end = timer()
-        deleteDataset(path, True)
-        diff = end - start
-    else:
-        start = timer()
-        subMatrix = computeKernelMatrix(model, x1=subset, x2=None, path=path, name='Kxx')
-        subMatrix = constructSymmetricMatrix(subMatrix)
-        # subMatrix = computeKernelMatrixParallel(model=model, x1=subset, x2=None, path=path, name='Kxx', diag=False)
-        finalMatrix = np.empty((length, length))
-        finalMatrix[0:subMatrix.shape[0], 0:subMatrix.shape[1]] = subMatrix
-        if mode == 'svd':
-            erg = iterativeSVD(finalMatrix)
-        else:
-            erg = softImpute(finalMatrix)
-        end = timer()
-        deleteDataset(path)
-        diff = end - start
-    diff = diff // 60  # return time in minutes
-    print(diff)
-    return diff, erg
-
-
-# def compareMethodsOverTime(repetitions=5):  # todo adjust the fractions (0.5 corresponds to 0.25 actually)
-#     print('start')
-#     path = './plotting/approximations'
-#     fractions = np.arange(0.1, 1, 0.1)
-#     model = loadModel()
-#     full_dataset = loadDataset()
-#     train_dataset = getFirstSamples(full_dataset, 25000)
-#     validation_set = Subset(full_dataset, list(range(25000, 27500)))
-#     train_labels = loadTargets(train_dataset)
-#     validation_labels = loadTargets(validation_set)
-#     # Compute the kernel matrix exactly
-#     # Kxx_symm = computeKernelMatrixParallel(model, x1=train_dataset, x2=None, path='./plotting/orig', name='Kxx')
-#     Kxx_orig = computeKernelMatrix(model, x1=train_dataset, x2=None, path=ORIGINAL_PATH, name='Kxx').numpy()
-#     Kxx_symm = constructSymmetricMatrix(Kxx_orig)
-#     # Kxvx = computeKernelMatrixParallel(model, x1=validation_set, x2=train_dataset,
-#     #                                    path=ORIGINAL_PATH, name='Kxvx', diag=True)
-#     # Initialization of all arrays containing the times, errors, evaluation measurements and so on
-#     # return
-#     svd_times = []
-#     nyst_times = []
-#     soft_times = []
-#     svd_time = []
-#     nyst_time = []
-#     soft_time = []
-#     svd_error = []
-#     svd_errors = []
-#     soft_error = []
-#     soft_errors = []
-#     nyst_error = []
-#     nyst_errors = []
-#     # Classification errors (Accuracy, Precision, Recall)
-#     svd_accuracies = []
-#     soft_accuracies = []
-#     nyst_accuracies = []
-#     svd_accuracy = []
-#     soft_accuracy = []
-#     nyst_accuracy = []
-#     svd_precisions = []
-#     soft_precisions = []
-#     nyst_precisions = []
-#     svd_precision = []
-#     soft_precision = []
-#     nyst_precision = []
-#     svd_recalls = []
-#     soft_recalls = []
-#     nyst_recalls = []
-#     svd_recall = []
-#     soft_recall = []
-#     nyst_recall = []
-#     for fraction in tqdm(fractions):
-#         svd_time.clear()
-#         nyst_time.clear()
-#         soft_time.clear()
-#         svd_error.clear()
-#         soft_error.clear()
-#         nyst_error.clear()
-#         svd_accuracy.clear()
-#         soft_accuracy.clear()
-#         nyst_accuracy.clear()
-#         svd_precision.clear()
-#         soft_precision.clear()
-#         nyst_precision.clear()
-#         svd_recall.clear()
-#         soft_recall.clear()
-#         nyst_recall.clear()
-#         for _ in tqdm(range(repetitions)):
-#             time, approximation = measureTime(model, train_dataset, fraction, 'svd', path)
-#             svd_time.append(time)
-#             svd_error.append(computeRMSE(Kxx_symm, approximation))
-#             acc, prec, recall = evaluate(Kxx_approx=approximation, Y=train_labels, Kxvx=Kxvx,
-#                                          Y_val=validation_labels, key='Validation')
-#             svd_accuracy.append(acc)
-#             svd_precision.append(prec)
-#             svd_recall.append(recall)
-#             time, approximation = measureTime(model, train_dataset, fraction, 'soft', path)
-#             soft_time.append(time)
-#             soft_error.append(computeRMSE(Kxx_symm, approximation))
-#             acc, prec, recall = evaluate(approximation, train_labels, Kxvx, validation_labels, key='validation')
-#             soft_accuracy.append(acc)
-#             soft_precision.append(prec)
-#             soft_recall.append(recall)
-#             time, approximation = measureTime(model, train_dataset, fraction, 'nyst', path)
-#             nyst_time.append(time)
-#             nyst_error.append(computeRMSE(Kxx_symm, approximation))
-#             acc, prec, recall = evaluate(approximation, train_labels, Kxvx, validation_labels, key='validation')
-#             nyst_accuracy.append(acc)
-#             nyst_precision.append(prec)
-#             nyst_recall.append(recall)
-#         svd_times.append(svd_time)
-#         soft_times.append(soft_time)
-#         nyst_times.append(nyst_time)
-#         svd_errors.append(svd_error)
-#         soft_errors.append(soft_error)
-#         nyst_errors.append(nyst_error)
-#         svd_accuracies.append(svd_accuracy)
-#         soft_accuracies.append(soft_accuracy)
-#         nyst_accuracies.append(nyst_accuracy)
-#         svd_precisions.append(svd_precision)
-#         soft_precisions.append(soft_precision)
-#         nyst_precisions.append(nyst_precision)
-#         svd_recalls.append(svd_recall)
-#         soft_recalls.append(soft_recall)
-#         nyst_recalls.append(nyst_recall)
-#     svd_mean_time = computeMeanVariance(svd_times)
-#     soft_mean_time = computeMeanVariance(soft_times)
-#     nyst_mean_time = computeMeanVariance(nyst_times)
-#     svd_mean_error = computeMeanVariance(svd_errors)
-#     soft_mean_error = computeMeanVariance(soft_errors)
-#     nyst_mean_error = computeMeanVariance(nyst_errors)
-#     svd_mean_accuracy = computeMeanVariance(svd_accuracies)
-#     soft_mean_accuracy = computeMeanVariance(soft_accuracies)
-#     nyst_mean_accuracy = computeMeanVariance(nyst_accuracies)
-#     svd_mean_precision = computeMeanVariance(svd_precisions)
-#     soft_mean_precision = computeMeanVariance(soft_precisions)
-#     nyst_mean_precision = computeMeanVariance(nyst_precisions)
-#     svd_mean_recall = computeMeanVariance(svd_recalls)
-#     soft_mean_recall = computeMeanVariance(soft_recalls)
-#     nyst_mean_recall = computeMeanVariance(nyst_recalls)
-#     # Plot Reconstruction errors over fraction for different types
-#     print('Plotting')
-#     mean_errors = svd_mean_error[0], soft_mean_error[0], nyst_mean_error[0]
-#     createPlots(mean_errors, fractions * 100, title='Expected error of approximated kernel matrix and exactly computed '
-#                                                     'one', name='rmse', ylabel='RMSE', xlabel='Percentage of missing '
-#                                                                                               'values of the kernel '
-#                                                                                               'matrix')
-#     # Plot Time over fraction for different types
-#     mean_times = svd_mean_time[0], soft_mean_time[0], nyst_mean_time[0]
-#     createPlots(mean_times, fractions * 100, title='Expected computation time of kernel matrix over percentage of '
-#                                                    'missing values', name='timing', ylabel='Time in minutes',
-#                 xlabel='Percentage of missing values of the kernel matrix ')
-#     # Plot accuracy over fraction for different types
-#     mean_accuracies = svd_mean_accuracy[0], soft_mean_accuracy[0], nyst_mean_accuracy[0]
-#     createPlots(mean_accuracies, fractions * 100,
-#                 title='Expected prediction accuracy over the percentage of missing values',
-#                 name='accuracy', ylabel='Accuracy', xlabel='Percentage of missing values of the kernel matrix')
-#     mean_precisions = svd_mean_precision[0], soft_mean_precision[0], nyst_mean_precision[0]
-#     createPlots(mean_precisions, fractions * 100, title='Expected prediction precision over percentage of missing '
-#                                                         'values of the kernel matrix', name='precision',
-#                 ylabel='Precision', xlabel='Percentage of approximated values of kernel matrix')
-#     mean_recalls = svd_mean_recall[0], soft_mean_recall[0], nyst_mean_recall[0]
-#     createPlots(mean_recalls, fractions * 100,
-#                 title='Expected prediction recall over percentage of approximated values '
-#                       'for kernel matrix',
-#                 name='recall', ylabel='Recall', xlabel='Percentage of approximated values of kernel matrix')
+def compareAccuracyOverTime(repetitions=3):
+    print('start')
+    model = loadModel()
+    dataset = loadDataset()
+    os.system(f"python -m plotting.computeKernel computeKxxMatrix {ORIGINAL_PATH_ACC} Kxx")
+    os.system(f"python -m plotting.computeKernel loadMatrixFromDiskAndMirror {ORIGINAL_PATH_ACC} Kxx")
+    with h5py.File(ORIGINAL_PATH_ACC, "r") as f:
+        Kxx_symm = np.empty(MATRIX_SIZE)
+        # Kxx_symm = np.array(f.get('Kxx'))
+        f['Kxx'].read_direct(Kxx_symm)
+        print('Done')
+        f.close()
+    os.system(f"python -m plotting.computeKernel computeValidationKernel {ORIGINAL_PATH_ACC} Kxvx")
+    with h5py.File(ORIGINAL_PATH_ACC, 'r') as f:
+        Kxvx = load_kern(f['Kxvx'], 0)
+    Y = loadTargets(dataset)
+    Yv = loadTargets(loadDataset(mode='val'))
+    svd_times = []
+    nyst_times = []
+    soft_times = []
+    mf_times = []
+    svd_time = []
+    nyst_time = []
+    soft_time = []
+    mf_time = []
+    svd_error = []
+    svd_errors = []
+    soft_error = []
+    soft_errors = []
+    nyst_error = []
+    nyst_errors = []
+    mf_error = []
+    mf_errors = []
+    # Classification errors (Accuracy, Precision, Recall)
+    svd_accuracies = []
+    soft_accuracies = []
+    nyst_accuracies = []
+    mf_accuracies = []
+    svd_accuracy = []
+    soft_accuracy = []
+    nyst_accuracy = []
+    mf_accurracy = []
+    for fraction in tqdm(FRACTIONS):
+        svd_time.clear()
+        nyst_time.clear()
+        soft_time.clear()
+        mf_time.clear()
+        svd_error.clear()
+        soft_error.clear()
+        nyst_error.clear()
+        mf_error.clear()
+        svd_accuracy.clear()
+        soft_accuracy.clear()
+        nyst_accuracy.clear()
+        mf_accurracy.clear()
+        # Compute the proper fraction because taking half of the components does only cover one fourth of the matrix
+        # Therefore the sqare root is taken here in order to obtain the fraction of the matrix
+        fraction = np.sqrt(fraction)
+        components = int(fraction * MATRIX_SIZE[0])
+        nystroem = Nystroem(n_components=components, k=None, dataset=dataset, model=model, path=NYSTROEM_PATH_ACC)
+        for rep in tqdm(range(repetitions)):
+            # Compute the submatrices only once which is used for Soft, MF and SVD Iter and is fix the same
+            if rep == 0:
+                os.system(f"python -m plotting.computeKernel computeKxxMatrix {SUBMATRIX_PATH_ACC} Kxx_pert {fraction}")
+                with h5py.File(SUBMATRIX_PATH_ACC, 'r') as f:
+                    basic_timing = np.array(f.get('time'))
+            ## SVD
+            os.system(f"python -m plotting.computeMatrixFactorization {SUBMATRIX_PATH_ACC} {SVD_PATH_ACC} svd")
+            time, approx = readTimeandApprox(SVD_PATH_ACC)
+            timing = basic_timing + time
+            svd_time.append(timing)
+            svd_error.append(computeRelativeRMSE(Kxx_symm, approx, fraction=1 - fraction))
+            svd_accuracy.append(evaluate(Kxx_approx=approx, Y=Y, Kxvx=Kxvx, Y_val=Yv, key='validation'))
+            ## SOFT
+            os.system(f"python -m plotting.computeMatrixFactorization {SUBMATRIX_PATH_ACC} {SOFT_PATH_ACC} soft")
+            time, approx = readTimeandApprox(SOFT_PATH_ACC)
+            soft_time.append(time + basic_timing)
+            soft_error.append(computeRelativeRMSE(Kxx_symm, approx, fraction=1 - fraction))
+            soft_accuracy.append(evaluate(Kxx_approx=approx, Y=Y, Kxvx=Kxvx, Y_val=Yv, key='validation'))
+            ##Mf
+            os.system(f"python -m plotting.computeMatrixFactorization {SUBMATRIX_PATH_ACC} {MF_PATH_ACC}  mf")
+            time, approx = readTimeandApprox(MF_PATH_ACC)
+            mf_time.append(time + basic_timing)
+            mf_error.append(computeRelativeRMSE(Kxx_symm, approx, fraction=1 - fraction))
+            mf_accurracy.append(evaluate(approx, Y, Kxvx, Yv, 'val'))
+            ## NYST
+            start = timer()
+            approx = nystroem.fit_transform()
+            end = timer()
+            diff = (end - start) // 60
+            nyst_time.append(diff)
+            nyst_error.append(computeRelativeRMSE(Kxx_symm, approx, 1 - fraction))
+            nyst_accuracy.append(evaluate(approx, Y, Kxvx, Yv, 'val'))
+            deleteDataset(NYSTROEM_PATH_ACC, '', True)
+        deleteDataset(SUBMATRIX_PATH_ACC, 'time')
+        deleteDataset(SUBMATRIX_PATH_ACC, 'Kxx_sub')
+        svd_times.append(list(svd_time[:]))
+        soft_times.append(list(soft_time[:]))
+        nyst_times.append(list(nyst_time[:]))
+        mf_times.append(list(mf_time[:]))
+        svd_errors.append(list(svd_error[:]))
+        soft_errors.append(list(soft_error[:]))
+        nyst_errors.append(list(nyst_error[:]))
+        mf_errors.append(list(mf_error[:]))
+        svd_accuracies.append(list(svd_accuracy[:]))
+        soft_accuracies.append(list(soft_accuracy[:]))
+        nyst_accuracies.append(list(nyst_accuracy[:]))
+        mf_accuracies.append(list(mf_accurracy[:]))
+    svd_mean_time = computeMeanVariance(svd_times)
+    soft_mean_time = computeMeanVariance(soft_times)
+    nyst_mean_time = computeMeanVariance(nyst_times)
+    mf_mean_time = computeMeanVariance(mf_times)
+    svd_mean_error = computeMeanVariance(svd_errors)
+    soft_mean_error = computeMeanVariance(soft_errors)
+    nyst_mean_error = computeMeanVariance(nyst_errors)
+    mf_mean_error = computeMeanVariance(mf_errors)
+    svd_mean_accuracy = computeMeanVariance(svd_accuracies)
+    soft_mean_accuracy = computeMeanVariance(soft_accuracies)
+    nyst_mean_accuracy = computeMeanVariance(nyst_accuracies)
+    mf_mean_accuracy = computeMeanVariance(mf_accuracies)
+    normal_accuracy = evaluate(Kxx_symm, Y, Kxvx, Yv, 'Ground truth validation')
+    # Plot Reconstruction errors over fraction for different types
+    print('Plotting')
+    mean_errors = svd_mean_error[0], soft_mean_error[0], mf_mean_error[0], nyst_mean_error[0]
+    createPlots(mean_errors, FRACTIONS,
+                title='Expected relative error of approximated kernel matrix over fraction of exactly '
+                      'computed '
+                      'values of 5000 * 5000 matrix', name='rmse', ylabel='Relative RMSE', xlabel='Fraction of exactly'
+                                                                                                  'computed '
+                                                                                                  'components of the '
+                                                                                                  'kernel '
+                                                                                                  'matrix')
+    # Plot Time over fraction for different types
+    mean_times = svd_mean_time[0], soft_mean_time[0], mf_mean_time[0], nyst_mean_time[0]
+    createPlots(mean_times, FRACTIONS, title='Expected computation time of approximated 5000 * 5000 kernel matrix '
+                                             'over fraction '
+                                             'of exactly computed elements', name='timing', ylabel='Time in minutes',
+                xlabel='Fraction of exactly computed components of the kernel matrix ')
+    # Plot accuracy over fraction for different types
+    mean_accuracies = svd_mean_accuracy[0], soft_mean_accuracy[0], mf_mean_accuracy[0], nyst_mean_accuracy[0]
+    createPlots(mean_accuracies, FRACTIONS,
+                title='Expected prediction accuracy over the fraction of exactly computed values of 5000*5000 matrix',
+                name='accuracy', ylabel='Accuracy', xlabel='Percentage of exactly computed components of the '
+                                                           'kernel '
+                                                           'matrix')
 
 
 if __name__ == "__main__":
     fire.Fire()
-    # compareMethodsOverTime(path)
-    # compareMethodsOverError(path)

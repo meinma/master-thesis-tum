@@ -15,14 +15,15 @@ from configs import mnist_paper_convnet_gp
 from utils import load_kern, deleteDataset
 
 sn.set()
+PARAMETERS_PATH = './plotting/params.h5'
 
 
 def warmUp_GPU():
     model = loadModel()
     args = {"same": False, "diag": False}
     for _ in range(5):
-        x1 = torch.randn((5, 1, 28, 28)).cuda()
-        x2 = torch.randn((4, 1, 28, 28)).cuda()
+        x1 = torch.randn((100, 1, 28, 28)).cuda()
+        x2 = torch.randn((100, 1, 28, 28)).cuda()
         _ = model(x1, x2, **args)
 
 
@@ -34,14 +35,23 @@ def loadModel(config=mnist_paper_convnet_gp):
     return config.initial_model.cuda()
 
 
-def loadDataset(path="./scratch/datasets/", config=mnist_paper_convnet_gp):
+def loadDataset(path="./scratch/datasets/", config=mnist_paper_convnet_gp, mode='train'):
     """
     Returns the entire dataset specified by its path and the configuration (train_range, validation_range..)
+    @param mode: specifies which dataset is returned, train, test, val or full
     @param path: dataset path
     @param config: config
     @return:
     """
-    return DatasetFromConfig(path, config=config).train
+    dataset = DatasetFromConfig(path, config)
+    if mode == 'train':
+        return dataset.train
+    elif mode == 'val':
+        return dataset.validation
+    elif mode == 'test':
+        return dataset.test
+    else:
+        return dataset.data_full
 
 
 def sample_data(dataset, samples):
@@ -102,13 +112,15 @@ def plotTimes():
     means = np.mean(timings, axis=1)
     # Fit a polynomial to the data
     parameters = np.polyfit(kernelSizes, means, deg=2)
-    print(parameters)
+    with h5py.File(PARAMETERS_PATH, 'w')as f:
+        f.create_dataset('parameters', data=parameters)
     polynomial = np.poly1d(parameters)
     plt.title('Time to compute the kernel matrix over the amount of data points')
     plt.xlabel('Number of data points for which the kernel matrix is computed')
     plt.ylabel('Computational time in minutes')
-    plt.plot(kernelSizes, means, label="Original Plot")
-    plt.plot(kernelSizes, polynomial(kernelSizes), label="Fitted polynomial of degree 2")
+    plt.plot(kernelSizes, means, 'o', label="Numerical Experiment")
+    points = range(0, 26000, 1000)
+    plt.plot(points, polynomial(points), label="Fitted polynomial of degree 2")
     plt.legend()
     plt.show()
     plt.savefig('./plots/beginnningPlot_fit.svg')

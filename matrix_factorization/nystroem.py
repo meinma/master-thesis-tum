@@ -4,7 +4,7 @@ import h5py
 import numpy as np
 import torch
 
-from utils import load_kern
+from utils import load_kern, constructSymmetricMatrix
 
 
 class Nystroem:
@@ -26,11 +26,11 @@ class Nystroem:
         print("Loading")
         with h5py.File(self.path, "r") as f:
             print("Loading kernel")
-            C = load_kern(f["C"], 0)
-            C_diag = load_kern(f["Cd"], 0, diag=True)
+            W = load_kern(f["W"], 0)
+            C_down = load_kern(f["C_down"], 0, diag=True)
             f.close()
         print("Loading successful")
-        return C.numpy(), C_diag.numpy()
+        return W, C_down.numpy()
 
     def fit_transform(self):
         """
@@ -38,10 +38,10 @@ class Nystroem:
         G_k = C@W_k^+@C.T
         """
         os.system(f"python -m plotting.computeKernel computeNystroem {self.path} {self.n_components}")
-        C, C_diag = self.loadMatrices()
-        np.fill_diagonal(C, C_diag[:self.n_components])
-        # Compute W corresponding to the upper squared part of C
-        W = C[:self.n_components, :self.n_components]
+        W, C_down = self.loadMatrices()
+        W = constructSymmetricMatrix(W)
+        # Stack both matrices row-wise
+        C = np.vstack((W, C_down))
         u, sigma, vt = np.linalg.svd(W, full_matrices=False)
         u_k = u[:, :self.k]
         sigma_k = sigma[:self.k]

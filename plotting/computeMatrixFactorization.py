@@ -29,7 +29,7 @@ def solve(inpath, outpath, mode):
     diff = (end - start) // 60
     with h5py.File(outpath, 'w') as f:
         f.create_dataset(name='time', data=diff)
-        f.create_dataset(name="approx", shape=(25000, 25000), data=approx)
+        f.create_dataset(name="approx", shape=(Kxx_pert.shape[0], Kxx_pert.shape[1]), data=approx)
         f.close()
 
 
