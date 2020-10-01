@@ -1,3 +1,4 @@
+import os
 from timeit import default_timer as timer
 
 import fire
@@ -73,6 +74,9 @@ def computeKxxMatrix(path, name, fraction=1.0):
         with h5py.File(path, "w") as f:
             save_K(f, kern, name, X=subset, X2=None, diag=False, **kwargs)
             f.close()
+        # end = timer()
+        # diff = (end - start) // 60
+        os.system(f"python -m plotting.loadMatrixFromDiskAndMirror {path} {name}")
         end = timer()
         diff = (end - start) // 60
         # Create subMatrix

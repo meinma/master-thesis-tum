@@ -2,18 +2,22 @@ import torchvision
 
 from cnn_gp import Conv2d, ReLU, Sequential, NormalizationModule
 
-# train_range = range(5000, 55000)
-# validation_range = list(range(55000, 60000)) + list(range(0, 5000))
-# test_range = range(60000, 70000)
+# Setting 4
+# train_range = range(0, 12500)
+# validation_range = range(12500, 13500)
+# test_range=range(17000,19000)
+# setting 3
 # train_range = range(0, 25000)
 # validation_range = range(25000, 27500)
 # test_range = range(27500, 30000)
-# train_range = range(0, 5000)
-# validation_range = range(5000, 5500)
-# test_range = range(5500, 6000)
-train_range = range(0, 100)
-validation_range = range(100, 101)
-test_range = range(101, 102)
+# setting 2
+# train_range = range(0, 20000)
+# validation_range = range(20000, 22500)
+# test_range = range(22500, 25000)
+# setting 1
+train_range = range(0, 5000)
+validation_range = range(6000, 7000)
+test_range = range(7000, 8000)
 
 dataset_name = "MNIST"
 model_name = "ConvNet"

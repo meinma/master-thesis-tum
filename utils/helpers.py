@@ -300,8 +300,8 @@ def deleteDataset(path, name='Kxx', nyst=False):
     with h5py.File(path, 'a') as f:
         # del f[name]
         if nyst:
-            del f['C']
-            del f['Cd']
+            del f['W']
+            del f['C_down']
         else:
             if name == 'Kxx':
                 del f['Kxx']

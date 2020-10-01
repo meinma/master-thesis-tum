@@ -22,7 +22,7 @@ def solve(inpath, outpath, mode):
         solver = SoftImpute()
     with h5py.File(inpath, 'r') as f:
         Kxx_pert = np.array(f.get('Kxx_pert'))
-        # f.close()
+        f.close()
     start = timer()
     approx = solver.fit_transform(Kxx_pert)
     end = timer()

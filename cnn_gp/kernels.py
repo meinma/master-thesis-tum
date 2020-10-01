@@ -323,7 +323,6 @@ def resnet_block(stride=1, projection_shortcut=False, multiplier=1):
 
 
 class NormalizationModule(NNGPKernel):
-    # Instead of dividing by the maximum value of kpxx, kpxy and kpyy divide each by its own maximum
     def propagate(self, kp):
         kp = ConvKP(kp)
         x_max = t.max(kp.xx).item()
@@ -337,11 +336,5 @@ class NormalizationModule(NNGPKernel):
         def normalize(patch):
             return patch / maximum
 
-        def normalize_variant2(patch):
-            return patch / t.max(patch).item()
-
         return ConvKP(kp.same, kp.diag, normalize(kp.xy), normalize(kp.xx), normalize(kp.yy))
-        # return ConvKP(kp.same, kp.diag, normalize_variant2(kp.xy), normalize_variant2(kp.xx),
-        # normalize_variant2(kp.yy))
 
-    """Alternatively use normalization as in BatchNorm"""
