@@ -23,7 +23,29 @@ def computeKxxPert(inpath, outpath, fraction):
         f.close()
 
 
-def computeValidationKernel(path, name):
+def computeValidationAndTestKernel(path):
+    """
+    Computes and stores the matrices Kxtx and Kxvx for computing the predictions the test and validation predictions
+    @param path: File where the matrices are stored (Data set names are Kxvx and Kxtx)
+    @return:
+    """
+    model = loadModel()
+    train = loadDataset()
+    val = loadDataset(mode='val')
+    test = loadDataset(mode='test')
+    kwargs = dict(worker_rank=0, n_workers=1,
+                  batch_size=200, print_interval=2.)
+
+    def kern(x, x2, **args):
+        with torch.no_grad():
+            return model(x.cuda(), x2.cuda(), **args).detach().cpu().numpy()
+
+    with h5py.File(path, 'w') as f:
+        save_K(f, kern, 'Kxvx', val, train, diag=False, **kwargs)
+        save_K(f, kern, 'Kxtx', test, train, diag=False, **kwargs)
+
+
+def computeValidationKernel(path, name, mode='val'):
     """
     Computes the validation matrix and stores it in a file with a given name
     @param path: specifies file to store Kxvx matrix
@@ -32,7 +54,7 @@ def computeValidationKernel(path, name):
     """
     model = loadModel()
     train = loadDataset(mode='train')
-    val = loadDataset(mode='val')
+    val = loadDataset(mode=mode)
     kwargs = dict(worker_rank=0, n_workers=1,
                   batch_size=200, print_interval=2.)
 
@@ -74,15 +96,18 @@ def computeKxxMatrix(path, name, fraction=1.0):
         with h5py.File(path, "w") as f:
             save_K(f, kern, name, X=subset, X2=None, diag=False, **kwargs)
             f.close()
-        # end = timer()
-        # diff = (end - start) // 60
-        os.system(f"python -m plotting.loadMatrixFromDiskAndMirror {path} {name}")
         end = timer()
         diff = (end - start) // 60
+        os.system(f"python -m plotting.computeKernel loadMatrixFromDiskAndMirror {path} {name}")
+        # end = timer()
+        # diff = (end - start) // 60
         # Create subMatrix
         with h5py.File(path, 'a') as f:
-            sub_Matrix = load_kern(f[name], 0)
-            print(sub_Matrix.shape)
+            time = np.array(f.get('time'))
+            diff = diff + time
+            del f['time']
+            # sub_Matrix = load_kern(f[name], 0)
+            sub_Matrix = np.array(f.get(name))
             newMatrix = np.empty((len(dataset), len(dataset)))
             newMatrix.fill(np.nan)
             newMatrix[:new_length, :new_length] = sub_Matrix[:, :]
@@ -140,10 +165,14 @@ def loadMatrixFromDiskAndMirror(path, name):
     """
     with h5py.File(path, "a") as f:
         matrix = load_kern(f[name], 0)
+        start = timer()
         sym_Matrix = constructSymmetricMatrix(matrix)
+        stop = timer()
+        diff = (stop - start) // 60
         del f[name]
     with h5py.File(path, 'w') as f:
         f.create_dataset(name=name, shape=(matrix.shape[0], matrix.shape[1]), data=sym_Matrix)
+        f.create_dataset(name='time', data=np.array(diff))
 
 
 if __name__ == "__main__":
