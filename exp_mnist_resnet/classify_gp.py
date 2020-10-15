@@ -63,5 +63,4 @@ if __name__ == '__main__':
     f.DEFINE_string('in_path', "/scratch/ag919/grams_pytorch/mnist/dest.h5",
                     "path of h5 file to load kernels from")
     f.DEFINE_float("jitter", 0.0, "add to the diagonal")
-    f.DEFINE_float("computation", 1.0, "fraction of kxx which is computed exactly")
     absl.app.run(main)

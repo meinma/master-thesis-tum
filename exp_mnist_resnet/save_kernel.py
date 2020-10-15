@@ -48,5 +48,4 @@ if __name__ == '__main__':
     f.DEFINE_integer("n_workers", 1, "num of workers")
     f.DEFINE_integer("worker_rank", 0, "rank of worker")
     f.DEFINE_string('out_path', None, "path of h5 file to save kernels in")
-    f.DEFINE_float('computation', 1.0, "the fraction of the kxx matrix which shall be computed exactly")
     absl.app.run(main)
