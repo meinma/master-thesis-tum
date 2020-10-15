@@ -2,6 +2,7 @@ import os
 
 import h5py
 import numpy as np
+import scipy
 import torch
 
 from utils import load_kern, constructSymmetricMatrix
@@ -9,6 +10,14 @@ from utils import load_kern, constructSymmetricMatrix
 
 class Nystroem:
     def __init__(self, n_components, k, dataset, model, path):
+        """
+        Initialize Nyström solver
+        @param n_components: number of m data points for which the kernel is evaluated exactly in matrix W (called M in the thesis)
+        @param k: is used for the SVD only the first k most important eigenvalues are kept, others are set to zero
+        @param dataset: dataset for which the nyström method is used
+        @param model: model defining the kernel between two training data points
+        @param path: matrices are stored there (requires to be a h5 file)
+        """
         torch.cuda.empty_cache()
         self.n_components = n_components
         self.model = model
@@ -21,7 +30,7 @@ class Nystroem:
 
     def loadMatrices(self):
         """
-        @return: the matrix C and C_diag which have been computed before and stored as h5py file
+        @return: the matrix W and C_down which have been computed before and stored as h5py file
         """
         print("Loading")
         with h5py.File(self.path, "r") as f:
@@ -42,7 +51,8 @@ class Nystroem:
         W = constructSymmetricMatrix(W)
         # Stack both matrices row-wise
         C = np.vstack((W, C_down))
-        u, sigma, vt = np.linalg.svd(W, full_matrices=False)
+        u, sigma, vt = scipy.linalg.svd(W, full_matrices=False)
+        # u, sigma, vt = np.linalg.svd(W, full_matrices=False)
         u_k = u[:, :self.k]
         sigma_k = sigma[:self.k]
         vt_k = vt[:self.k, :]

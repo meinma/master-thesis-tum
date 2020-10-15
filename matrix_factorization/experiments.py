@@ -1,3 +1,4 @@
+import sys
 from timeit import default_timer as timer
 
 import fire
@@ -23,12 +24,12 @@ def measureTime(Xpert, mode):
         solver = SoftImpute()
     else:
         print("Mode chosen wrongly")
-        return -1
+        sys.exit(-1)
     start = timer()
     approx = solver.fit_transform(Xpert)
     end = timer()
     diff = end - start
-    minutes = diff // 60
+    minutes = (diff / 60)
     return approx, minutes
 
 
@@ -92,9 +93,7 @@ def startExperiment():
             svd_min.append(error.min_error)
             svd_max.append(error.max_error)
             svd_median.append(error.median_error)
-            print(time)
             approx, time = measureTime(x_tilde, 'mf')
-            print(time)
             uv_error.append(computeRelativeRMSE(x, approx, fraction))
             uv_time.append(time)
             error = computeErrors(x, approx)
@@ -108,7 +107,6 @@ def startExperiment():
             soft_min.append(error.min_error)
             soft_max.append(error.max_error)
             soft_median.append(error.median_error)
-            print(time)
         svd_maxs.append(list(svd_max[:]))
         svd_mins.append(list(svd_min[:]))
         svd_medians.append(list(svd_median[:]))
@@ -146,11 +144,14 @@ def startExperiment():
     mins = svd_min_expectation, soft_min_expectation, mf_min_expectation
     maxs = svd_max_expecatation, soft_max_expectation, mf_max_expecatation
     print('Plotting')
+    print(f" SVD times: {svd_time_expectation} \n")
+    print(f" Soft times: {impute_time_expectation} \n")
+    print(f" MF times: {uv_time_expectation}")
     createPlots(medians, fractions, title='Median error over fraction of approximated kernel values',
                 name='medians5000', xlabel='Fraction of approximated values', ylabel='Median Error')
     createPlots(mins, fractions, title='Minimum error over fraction of approximated kernel values', name='mins5000',
                 xlabel='Fraction of approximated values', ylabel='Minimum error')
-    createPlots(maxs, fractions, title='Maximum error over fractio of approximated kernel values', name='maxs5000',
+    createPlots(maxs, fractions, title='Maximum error over fraction of approximated kernel values', name='maxs5000',
                 xlabel='Fraction of approximated values', ylabel='Maximum error')
     createPlots(times, fractions, title='Time over fraction of approximated kernel values', name='AllTime5000',
                 xlabel='Fraction of approximated values', ylabel='Time in minutes')

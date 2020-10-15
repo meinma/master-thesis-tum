@@ -11,13 +11,15 @@ from scipy.sparse.linalg import lsmr
 from sklearn import metrics
 from torch.utils.data import DataLoader
 
+from utils.Error import Error
+
 sn.set()
 
-__all__ = ('createPlots', 'plotEigenvalues', 'oneHotEncoding', 'computeRMSE', 'compute_recall', 'compute_accuracy',
-           'computeMeanVariance', 'constructSymmetricIfNotSymmetric', 'compute_precision', 'computePredictions',
+__all__ = ('createPlots', 'plotEigenvalues', 'oneHotEncoding', 'computeRMSE', 'compute_accuracy',
+           'computeMeanVariance', 'constructSymmetricIfNotSymmetric', 'computePredictions',
            'constructSymmetricMatrix', 'isSymmetric', 'print_accuracy', 'load_kern', 'loadTargets', 'deleteDataset',
-           'solve_system_old', 'deleteValues', 'diag_add', 'generateSquareRandomMatrix',
-           'solve_system', 'solve_system_fast', 'computeRelativeRMSE', 'readTimeandApprox')
+           'solve_system_old', 'deleteValues', 'diag_add', 'generateSquareRandomMatrix', 'solve_system_fast',
+           'computeRelativeRMSE', 'readTimeandApprox', 'computeErrors')
 
 
 def createPlots(moments, fractions, title, name, xlabel, ylabel):
@@ -205,12 +207,27 @@ def compute_precision(Y_pred, Y, key):
 
 
 def compute_accuracy(Y_pred, Y, key):
+    """
+    returns the accuracy, given the predictions and the ground truth labels
+    @param Y_pred: predictions
+    @param Y: ground truth labels
+    @param key: 'val' or 'test' to print
+    @return: accuracy score
+    """
     accuracy = metrics.accuracy_score(Y, Y_pred)
     print(f"{key} accuracy: {accuracy * 100}%")
     return accuracy
 
 
 def print_accuracy(A, Kxvx, Y, key):
+    """
+    Computing the predictions and printing the accuracy
+    @param A: The inverse of Kxx
+    @param Kxvx: Kernel matrix between the training and validation/test data
+    @param Y: ground truth labels
+    @param key: ''validation' or 'test' used for the printing
+    @return:
+    """
     Ypred = (Kxvx @ A).argmax(dim=1)
     acc = metrics.accuracy_score(Y, Ypred)
     print(f"{key} accuracy: {acc * 100}%")
@@ -235,7 +252,7 @@ def computeRMSE(x: np.ndarray, y: np.ndarray, fraction) -> np.float:
     N = int(fraction * y.shape[0] * y.shape[1])
     diff = x - y
     diff = diff ** 2
-    return np.sqrt(np.sum(diff)) / N
+    return np.sqrt(np.sum(diff) / N)
 
 
 def computeRelativeRMSE(orig, approx, fraction) -> np.float:
@@ -331,3 +348,17 @@ def loadTargets(dataset):
     """
     _, Y = next(iter(DataLoader(dataset, batch_size=len(dataset))))
     return Y
+
+
+def computeErrors(x: np.ndarray, y: np.ndarray) -> Error:
+    """
+    Given two matrices computes the max, min and median error and returns an Error object containing them all
+    @param x: Original matrix
+    @param y: Approximated matrix
+    @return: Error object containing min, max and median error
+    """
+    diff = np.abs(x - y)
+    min_error = np.min(diff)
+    max_error = np.max(diff)
+    median_error = np.median(diff)
+    return Error(min_error, max_error, median_error)
