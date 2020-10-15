@@ -59,7 +59,7 @@ python -m evaluation.evaluateIterativeSVD
  ```bash
 python -m evaluation.evaluateNyström
 ```
-
+# Architecture of the original and ConvNet GP and the one with the Normalization layer
 <details>
   <summary>(click to expand) Architecture for ConvNet GP</summary>
 
