@@ -8,11 +8,18 @@ import torch
 from torch.utils.data import Subset
 
 from cnn_gp import save_K
-from plotting.createStartPlot import loadDataset, loadModel
-from utils import load_kern, constructSymmetricMatrix, deleteValues
+from plotting.createStartPlot import loadDataset
+from utils import load_kern, constructSymmetricMatrix, deleteValues, loadNormalizedModel
 
 
 def computeKxxPert(inpath, outpath, fraction):
+    """
+    Takes a given matrix and sets randomly a fraction of all matrix values to nan.
+    @param inpath: Matrix given in h5 file where values are set to nan
+    @param outpath: Permuted matrix is stored in that h5 file
+    @param fraction: determines how many values are set to nan from the overall matrix elements
+    @return:
+    """
     frac = float(fraction)
     with h5py.File(inpath, 'r') as f:
         Kxx_symm = np.array(f.get('Kxx'))
@@ -29,7 +36,7 @@ def computeValidationAndTestKernel(path):
     @param path: File where the matrices are stored (Data set names are Kxvx and Kxtx)
     @return:
     """
-    model = loadModel()
+    model = loadNormalizedModel()
     train = loadDataset()
     val = loadDataset(mode='val')
     test = loadDataset(mode='test')
@@ -53,7 +60,7 @@ def computeValidationKernel(path, name, mode='val'):
     @param name: dataset name within the file
     @return:
     """
-    model = loadModel()
+    model = loadNormalizedModel()
     train = loadDataset(mode='train')
     val = loadDataset(mode=mode)
     kwargs = dict(worker_rank=0, n_workers=1,
@@ -65,7 +72,6 @@ def computeValidationKernel(path, name, mode='val'):
 
     with h5py.File(path, 'w') as f:
         save_K(f, kern, name, val, train, diag=False, **kwargs)
-        save_K(f, kern, 'Kv_diag', val, None, diag=True, **kwargs)
 
 
 def computeKxxMatrix(path, name, fraction=1.0):
@@ -77,7 +83,7 @@ def computeKxxMatrix(path, name, fraction=1.0):
     @return:
     """
     fraction = float(fraction)
-    model = loadModel()
+    model = loadNormalizedModel()
     dataset = loadDataset()
     kwargs = dict(worker_rank=0, n_workers=1,
                   batch_size=200, print_interval=2.)
@@ -118,7 +124,7 @@ def computeKxxMatrix(path, name, fraction=1.0):
 
 
 def computeNystroem(path, components):
-    model = loadModel()
+    model = loadNormalizedModel()
     dataset = loadDataset()
     subset = Subset(dataset, range(components))
 

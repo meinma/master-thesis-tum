@@ -5,8 +5,8 @@ import fire
 import h5py
 
 from matrix_factorization.nystroem import Nystroem
-from plotting.createStartPlot import loadModel, loadDataset
-from utils import solve_system_fast, loadTargets, oneHotEncoding, print_accuracy, load_kern
+from plotting.createStartPlot import loadDataset
+from utils import solve_system_fast, loadTargets, oneHotEncoding, print_accuracy, load_kern, loadNormalizedModel
 
 NYSTROM_PATH = "./evaluation/kernels.h5"
 NYSTROM_PATH_EVAL = './evaluation/nyst.h5'
@@ -14,7 +14,7 @@ NYSTROM_PATH_EVAL = './evaluation/nyst.h5'
 
 def evaluateNyström(fraction=0.2):
     start = timer()
-    model = loadModel()
+    model = loadNormalizedModel()
     dataset = loadDataset()
     test = loadDataset(mode='test')
     val = loadDataset(mode='val')

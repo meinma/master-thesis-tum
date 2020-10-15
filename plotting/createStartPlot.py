@@ -9,17 +9,16 @@ import torch
 from torch.utils.data import Subset
 from tqdm import tqdm
 
-from cnn_gp import DatasetFromConfig
-from cnn_gp import save_K
+from cnn_gp import DatasetFromConfig, save_K
 from configs import mnist_paper_convnet_gp
-from utils import load_kern, deleteDataset
+from utils import load_kern, deleteDataset, loadOriginalModel
 
 sn.set()
 PARAMETERS_PATH = './plotting/params.h5'
 
 
 def warmUp_GPU():
-    model = loadModel()
+    model = loadOriginalModel()
     args = {"same": False, "diag": False}
     for _ in range(5):
         x1 = torch.randn((100, 1, 28, 28)).cuda()
@@ -27,12 +26,6 @@ def warmUp_GPU():
         _ = model(x1, x2, **args)
 
 
-def loadModel(config=mnist_paper_convnet_gp):
-    """
-    Loads the model from the given config
-    @return: model on GPU
-    """
-    return config.initial_model.cuda()
 
 
 def loadDataset(path="./scratch/datasets/", config=mnist_paper_convnet_gp, mode='train'):
@@ -95,7 +88,7 @@ def plotTimes():
     kernelSizes = [200, 5000, 10000, 15000, 20000, 25000]
     repetitions = 3
     dataset = loadDataset()
-    model = loadModel()
+    model = loadOriginalModel()
     timings = np.zeros((len(kernelSizes), repetitions))
     warmUp_GPU()
     for index, size in tqdm(enumerate(kernelSizes)):

@@ -11,6 +11,7 @@ from scipy.sparse.linalg import lsmr
 from sklearn import metrics
 from torch.utils.data import DataLoader
 
+from configs import mnist_paper_convnet_gp
 from utils.Error import Error
 
 sn.set()
@@ -19,7 +20,7 @@ __all__ = ('createPlots', 'plotEigenvalues', 'oneHotEncoding', 'computeRMSE', 'c
            'computeMeanVariance', 'constructSymmetricIfNotSymmetric', 'computePredictions',
            'constructSymmetricMatrix', 'isSymmetric', 'print_accuracy', 'load_kern', 'loadTargets', 'deleteDataset',
            'solve_system_old', 'deleteValues', 'diag_add', 'generateSquareRandomMatrix', 'solve_system_fast',
-           'computeRelativeRMSE', 'readTimeandApprox', 'computeErrors')
+           'computeRelativeRMSE', 'readTimeandApprox', 'computeErrors', 'loadOriginalModel', 'loadNormalizedModel')
 
 
 def createPlots(moments, fractions, title, name, xlabel, ylabel):
@@ -362,3 +363,20 @@ def computeErrors(x: np.ndarray, y: np.ndarray) -> Error:
     max_error = np.max(diff)
     median_error = np.median(diff)
     return Error(min_error, max_error, median_error)
+
+
+def loadOriginalModel(config=mnist_paper_convnet_gp):
+    """
+    Loads the original model from the given config
+    @return: model on GPU
+    """
+    return config.initial_model.cuda()
+
+
+def loadNormalizedModel():
+    """
+    Returns the model that includes the normalization layer before every ReLU
+    @param config: by default the mnist config, can be changed to other configs
+    @return:
+    """
+    return mnist_paper_convnet_gp.normalized_model.cuda()

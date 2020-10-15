@@ -7,10 +7,10 @@ import numpy as np
 from tqdm import tqdm
 
 from matrix_factorization.nystroem import Nystroem
-from plotting.createStartPlot import loadModel, loadDataset
+from plotting.createStartPlot import loadDataset
 from utils import computeRelativeRMSE, createPlots, load_kern, \
     computeMeanVariance, deleteDataset, oneHotEncoding, computePredictions, compute_accuracy, \
-    readTimeandApprox, loadTargets, solve_system_fast
+    readTimeandApprox, loadTargets, solve_system_fast, loadNormalizedModel
 
 FRACTIONS = np.arange(0.1, 1.0, 0.1)
 MATRIX_SIZE = (5000, 5000)
@@ -44,7 +44,7 @@ def evaluate(Kxx_approx, Y, Kxvx, Y_val, key) -> float:
 
 def compareAccuracyOverTime(repetitions=3):
     print('start')
-    model = loadModel()
+    model = loadNormalizedModel()
     dataset = loadDataset()
     os.system(f"python -m plotting.computeKernel computeKxxMatrix {ORIGINAL_PATH_ACC} Kxx")
     os.system(f"python -m plotting.computeKernel loadMatrixFromDiskAndMirror {ORIGINAL_PATH_ACC} Kxx")
