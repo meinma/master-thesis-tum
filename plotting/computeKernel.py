@@ -43,6 +43,7 @@ def computeValidationAndTestKernel(path):
     with h5py.File(path, 'w') as f:
         save_K(f, kern, 'Kxvx', val, train, diag=False, **kwargs)
         save_K(f, kern, 'Kxtx', test, train, diag=False, **kwargs)
+        f.close()
 
 
 def computeValidationKernel(path, name, mode='val'):
@@ -97,16 +98,13 @@ def computeKxxMatrix(path, name, fraction=1.0):
             save_K(f, kern, name, X=subset, X2=None, diag=False, **kwargs)
             f.close()
         end = timer()
-        diff = (end - start) // 60
+        diff = (end - start) / 60
         os.system(f"python -m plotting.computeKernel loadMatrixFromDiskAndMirror {path} {name}")
-        # end = timer()
-        # diff = (end - start) // 60
         # Create subMatrix
         with h5py.File(path, 'a') as f:
             time = np.array(f.get('time'))
             diff = diff + time
             del f['time']
-            # sub_Matrix = load_kern(f[name], 0)
             sub_Matrix = np.array(f.get(name))
             newMatrix = np.empty((len(dataset), len(dataset)))
             newMatrix.fill(np.nan)
@@ -117,24 +115,6 @@ def computeKxxMatrix(path, name, fraction=1.0):
             f.create_dataset(name, shape=(len(dataset), len(dataset)), data=newMatrix)
             f.create_dataset(name='time', data=np.array(diff))
             f.close()
-
-
-#
-# def computeNystroem(path, components):
-#     model = loadModel()
-#     dataset = loadDataset()
-#
-#     def kern(x, x2, **args):
-#         with torch.no_grad():
-#             return model(x.cuda(), x2.cuda(), **args).detach().cpu().numpy()
-#
-#     with h5py.File(path, "w") as f:
-#         kwargs = dict(worker_rank=0, n_workers=1,
-#                       batch_size=200, print_interval=2.)
-#
-#         save_K(f, kern, name="C", X=dataset, X2=Subset(dataset, range(int(components))), diag=False, **kwargs)
-#         save_K(f, kern, name="Cd", X=dataset, X2=None, diag=True, **kwargs)
-#     print("Compute Nystroem done")
 
 
 def computeNystroem(path, components):
@@ -168,7 +148,7 @@ def loadMatrixFromDiskAndMirror(path, name):
         start = timer()
         sym_Matrix = constructSymmetricMatrix(matrix)
         stop = timer()
-        diff = (stop - start) // 60
+        diff = (stop - start) / 60
         del f[name]
     with h5py.File(path, 'w') as f:
         f.create_dataset(name=name, shape=(matrix.shape[0], matrix.shape[1]), data=sym_Matrix)
