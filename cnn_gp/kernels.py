@@ -317,8 +317,8 @@ def resnet_block(stride=1, projection_shortcut=False, multiplier=1):
         )
 
 
-"""Additional Class as nn.Module which is similarly used as BatchNormalization for NNs
-    It normalizes the data before feeding it into the nonlinear activation layer
+"""Additional Class as nn.Module 
+    It normalizes the data after every convolution and before feeding it into the nonlinear activation layer
 """
 
 
