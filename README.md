@@ -10,8 +10,7 @@ The thesis builds up on the paper of
 ```
 and therefore also uses the code of them publicly available on their own git: https://github.com/cambridge-mlg/cnn-gp.
 
-The master branch is the original code.
-On the other branch there can be ran several setups. In general only the configuration with the ConvNet GP and MNIST is used. 
+In general only the configuration with the ConvNet GP and MNIST is used and changed from the original version. 
 So, all configurations can be adjusted in the config file of ConvNet GP [ConvNetGP Config](/configs/mnist_paper_convnet_gp.py).
 Here can the training, validation and test be set.
 
